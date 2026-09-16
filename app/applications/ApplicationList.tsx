@@ -27,6 +27,7 @@ export default function ApplicationList({
     const [status, setStatus] = useState("All");
     const [dateFilter, setDateFilter] = useState("All");
     const [specificDate, setSpecificDate] = useState("");
+    const [sortBy, setSortBy] = useState("newest");
     const [deletingId, setDeletingId] = useState<number | null>(
         null,
     );
@@ -34,74 +35,161 @@ export default function ApplicationList({
     const filteredApplications = useMemo(() => {
         const query = search.trim().toLowerCase();
 
-        return applications
-            .filter((application) => {
-                const matchesSearch =
-                    !query ||
-                    application.company
-                        .toLowerCase()
-                        .includes(query) ||
-                    application.job_title
-                        .toLowerCase()
-                        .includes(query) ||
-                    application.location
-                        ?.toLowerCase()
-                        .includes(query);
+        let result = applications.filter((application) => {
+            const matchesSearch =
+                !query ||
+                application.company
+                    .toLowerCase()
+                    .includes(query) ||
+                application.job_title
+                    .toLowerCase()
+                    .includes(query) ||
+                application.location
+                    ?.toLowerCase()
+                    .includes(query);
 
-                const matchesStatus =
-                    status === "All" ||
-                    application.status === status;
+            const matchesStatus =
+                status === "All" ||
+                application.status === status;
 
-                const matchesDate = matchesDateFilter(
-                    application.date_applied,
-                    dateFilter,
-                    specificDate,
+            const matchesDate = matchesDateFilter(
+                application.date_applied,
+                dateFilter,
+                specificDate,
+            );
+
+            return (
+                matchesSearch &&
+                matchesStatus &&
+                matchesDate
+            );
+        });
+
+        /*
+         * Follow-up Priority only shows applications
+         * that currently have a planned follow-up.
+         */
+        if (sortBy === "follow-up") {
+            result = result.filter(
+                (application) =>
+                    application.planned_follow_up_count >
+                    0 &&
+                    application.next_follow_up_date !==
+                    null,
+            );
+        }
+
+        return result.sort((a, b) => {
+            if (sortBy === "oldest") {
+                return compareApplicationDate(
+                    a,
+                    b,
+                    "asc",
                 );
+            }
 
-                return (
-                    matchesSearch &&
-                    matchesStatus &&
-                    matchesDate
+            if (sortBy === "closing") {
+                return compareClosingDate(a, b);
+            }
+
+            if (sortBy === "follow-up") {
+                return compareFollowUpPriority(
+                    a,
+                    b,
                 );
-            })
-            .sort((a, b) => {
-                const dateDifference =
-                    new Date(b.date_applied).getTime() -
-                    new Date(a.date_applied).getTime();
+            }
 
-                if (dateDifference !== 0) {
-                    return dateDifference;
-                }
-
-                return b.id - a.id;
-            });
+            return compareApplicationDate(
+                a,
+                b,
+                "desc",
+            );
+        });
     }, [
         applications,
         search,
         status,
         dateFilter,
         specificDate,
+        sortBy,
     ]);
 
-    const groupedApplications = useMemo(() => {
-        const groups: Record<string, Application[]> = {};
+    const shouldGroupByApplicationDate =
+        sortBy === "newest" ||
+        sortBy === "oldest" ||
+        sortBy === "follow-up";
 
-        filteredApplications.forEach((application) => {
-            if (!groups[application.date_applied]) {
-                groups[application.date_applied] = [];
+const groupedApplications = useMemo(() => {
+    if (!shouldGroupByApplicationDate) {
+        return [];
+    }
+
+    const groups: Record<string, Application[]> =
+        {};
+
+    filteredApplications.forEach(
+        (application) => {
+            if (
+                !groups[
+                    application.date_applied
+                ]
+            ) {
+                groups[
+                    application.date_applied
+                ] = [];
             }
 
-            groups[application.date_applied].push(
-                application,
-            );
-        });
+            groups[
+                application.date_applied
+            ].push(application);
+        },
+    );
 
-        return Object.entries(groups).sort(
-            ([dateA], [dateB]) =>
-                new Date(dateB).getTime() -
-                new Date(dateA).getTime(),
+    const entries = Object.entries(groups);
+
+    /*
+     * Newest / Oldest:
+     * Sort groups by application date.
+     *
+     * Follow-up Priority:
+     * Keep the group order based on the first
+     * application inside each group. Since the
+     * applications are already sorted by follow-up
+     * priority, this keeps the highest-priority
+     * follow-up group at the top.
+     */
+    if (sortBy === "follow-up") {
+        return entries.sort(
+            ([dateA], [dateB]) => {
+                const firstA =
+                    groups[dateA][0];
+                const firstB =
+                    groups[dateB][0];
+
+                return compareFollowUpPriority(
+                    firstA,
+                    firstB,
+                );
+            },
         );
-    }, [filteredApplications]);
+    }
+
+    return entries.sort(
+        ([dateA], [dateB]) => {
+            const difference =
+                new Date(dateA).getTime() -
+                new Date(dateB).getTime();
+
+            return sortBy === "oldest"
+                ? difference
+                : -difference;
+        },
+    );
+}, [
+    filteredApplications,
+    shouldGroupByApplicationDate,
+    sortBy,
+]);
 
     async function handleDelete(
         event: React.MouseEvent<HTMLButtonElement>,
@@ -127,7 +215,8 @@ export default function ApplicationList({
                 {
                     method: "DELETE",
                     headers: {
-                        "Content-Type": "application/json",
+                        "Content-Type":
+                            "application/json",
                     },
                     body: JSON.stringify({ id }),
                 },
@@ -151,10 +240,20 @@ export default function ApplicationList({
         }
     }
 
+    const emptyMessage =
+        sortBy === "follow-up"
+            ? "No planned follow-ups found."
+            : "No applications found.";
+
+    const emptyDescription =
+        sortBy === "follow-up"
+            ? "Applications without a planned follow-up are not shown in this view."
+            : "Try changing your search or filters.";
+
     return (
         <>
             {/* Search and filters */}
-            <div className="mb-5 grid gap-3 md:grid-cols-3">
+            <div className="mb-5 grid gap-3 md:grid-cols-4">
                 {/* Search */}
                 <input
                     type="search"
@@ -240,6 +339,31 @@ export default function ApplicationList({
                         Specific Date
                     </option>
                 </select>
+
+                {/* Sort filter */}
+                <select
+                    value={sortBy}
+                    onChange={(event) =>
+                        setSortBy(event.target.value)
+                    }
+                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                >
+                    <option value="newest">
+                        Newest Applications
+                    </option>
+
+                    <option value="oldest">
+                        Oldest Applications
+                    </option>
+
+                    <option value="closing">
+                        Closing Date
+                    </option>
+
+                    <option value="follow-up">
+                        Follow-up Priority
+                    </option>
+                </select>
             </div>
 
             {/* Specific date */}
@@ -269,24 +393,26 @@ export default function ApplicationList({
                     <span className="font-semibold text-slate-700">
                         {filteredApplications.length}
                     </span>{" "}
-                    {filteredApplications.length === 1
+                    {filteredApplications.length ===
+                        1
                         ? "application"
                         : "applications"}
                 </p>
             </div>
 
-            {/* Applications */}
+            {/* No results */}
             {filteredApplications.length === 0 ? (
                 <div className="rounded-xl border border-slate-200 bg-white p-10 text-center shadow-sm">
                     <p className="text-sm font-medium text-slate-700">
-                        No applications found.
+                        {emptyMessage}
                     </p>
 
                     <p className="mt-1 text-sm text-slate-500">
-                        Try changing your search or filters.
+                        {emptyDescription}
                     </p>
                 </div>
-            ) : (
+            ) : shouldGroupByApplicationDate ? (
+                /* Grouped views: Newest / Oldest */
                 <div className="space-y-6">
                     {groupedApplications.map(
                         ([date, dayApplications]) => (
@@ -305,7 +431,7 @@ export default function ApplicationList({
                                                 dayApplications.length
                                             }{" "}
                                             {dayApplications.length ===
-                                            1
+                                                1
                                                 ? "application"
                                                 : "applications"}
                                         </p>
@@ -319,172 +445,26 @@ export default function ApplicationList({
                                             (
                                                 application,
                                                 index,
-                                            ) => {
-                                                const closingInfo =
-                                                    getClosingInfo(
-                                                        application.closing_date,
-                                                    );
-
-                                                const followUpInfo =
-                                                    getFollowUpInfo(
-                                                        application,
-                                                    );
-
-                                                const applicationNumber =
-                                                    dayApplications.length -
-                                                    index;
-
-                                                return (
-                                                    <Link
-                                                        key={
-                                                            application.id
-                                                        }
-                                                        href={`/applications/${application.id}`}
-                                                        className="group block p-5 transition hover:bg-slate-50"
-                                                    >
-                                                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                                                            {/* Left side */}
-                                                            <div className="flex min-w-0 items-start gap-4">
-                                                                {/* Application number */}
-                                                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-700">
-                                                                    {
-                                                                        applicationNumber
-                                                                    }
-                                                                </div>
-
-                                                                {/* Application information */}
-                                                                <div className="min-w-0">
-                                                                    <div className="flex flex-wrap items-center gap-2">
-                                                                        <h3 className="font-semibold text-slate-900">
-                                                                            {
-                                                                                application.company
-                                                                            }
-                                                                        </h3>
-
-                                                                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
-                                                                            {
-                                                                                application.status
-                                                                            }
-                                                                        </span>
-                                                                    </div>
-
-                                                                    <p className="mt-1 text-sm text-slate-700">
-                                                                        {
-                                                                            application.job_title
-                                                                        }
-                                                                    </p>
-
-                                                                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                                                                        {application.location && (
-                                                                            <span>
-                                                                                📍{" "}
-                                                                                {
-                                                                                    application.location
-                                                                                }
-                                                                            </span>
-                                                                        )}
-
-                                                                        {application.follow_up_count >
-                                                                            0 && (
-                                                                            <span>
-                                                                                🔄{" "}
-                                                                                {
-                                                                                    application.follow_up_count
-                                                                                }{" "}
-                                                                                {application.follow_up_count ===
-                                                                                1
-                                                                                    ? "follow-up"
-                                                                                    : "follow-ups"}
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-
-                                                                    {/* Follow-up summary */}
-                                                                    {application.follow_up_count >
-                                                                    0 ? (
-                                                                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                                                                            <span
-                                                                                className={`rounded-full px-2.5 py-1 text-xs font-medium ${followUpInfo.className}`}
-                                                                            >
-                                                                                {
-                                                                                    followUpInfo.label
-                                                                                }
-                                                                            </span>
-
-                                                                            <span className="text-xs text-slate-500">
-                                                                                {
-                                                                                    application.completed_follow_up_count
-                                                                                }{" "}
-                                                                                completed
-                                                                            </span>
-
-                                                                            {application.planned_follow_up_count >
-                                                                                0 && (
-                                                                                <span className="text-xs text-slate-500">
-                                                                                    {
-                                                                                        application.planned_follow_up_count
-                                                                                    }{" "}
-                                                                                    planned
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
-                                                                    ) : (
-                                                                        <p className="mt-3 text-xs text-slate-400">
-                                                                            No follow-ups
-                                                                        </p>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Right side */}
-                                                            <div className="flex shrink-0 items-center gap-4 sm:ml-4">
-                                                                <div className="text-left sm:text-right">
-                                                                    {closingInfo.label && (
-                                                                        <p
-                                                                            className={`text-sm font-medium ${closingInfo.className}`}
-                                                                        >
-                                                                            {
-                                                                                closingInfo.label
-                                                                            }
-                                                                        </p>
-                                                                    )}
-
-                                                                    {closingInfo.date && (
-                                                                        <p className="mt-1 text-xs text-slate-500">
-                                                                            {
-                                                                                closingInfo.date
-                                                                            }
-                                                                        </p>
-                                                                    )}
-                                                                </div>
-
-                                                                <button
-                                                                    type="button"
-                                                                    disabled={
-                                                                        deletingId ===
-                                                                        application.id
-                                                                    }
-                                                                    onClick={(
-                                                                        event,
-                                                                    ) =>
-                                                                        handleDelete(
-                                                                            event,
-                                                                            application.id,
-                                                                            application.company,
-                                                                        )
-                                                                    }
-                                                                    className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                                                                >
-                                                                    {deletingId ===
-                                                                    application.id
-                                                                        ? "Deleting..."
-                                                                        : "Delete"}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </Link>
-                                                );
-                                            },
+                                            ) => (
+                                                <ApplicationRow
+                                                    key={
+                                                        application.id
+                                                    }
+                                                    application={
+                                                        application
+                                                    }
+                                                    applicationNumber={
+                                                        dayApplications.length -
+                                                        index
+                                                    }
+                                                    deletingId={
+                                                        deletingId
+                                                    }
+                                                    onDelete={
+                                                        handleDelete
+                                                    }
+                                                />
+                                            ),
                                         )}
                                     </div>
                                 </div>
@@ -492,8 +472,295 @@ export default function ApplicationList({
                         ),
                     )}
                 </div>
+            ) : (
+                /* Flat views: Closing / Follow-up Priority */
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div className="divide-y divide-slate-100">
+                        {filteredApplications.map(
+                            (
+                                application,
+                                index,
+                            ) => (
+                                <ApplicationRow
+                                    key={application.id}
+                                    application={
+                                        application
+                                    }
+                                    applicationNumber={
+                                        index + 1
+                                    }
+                                    deletingId={
+                                        deletingId
+                                    }
+                                    onDelete={
+                                        handleDelete
+                                    }
+                                />
+                            ),
+                        )}
+                    </div>
+                </div>
             )}
         </>
+    );
+}
+
+function ApplicationRow({
+    application,
+    applicationNumber,
+    deletingId,
+    onDelete,
+}: {
+    application: Application;
+    applicationNumber: number;
+    deletingId: number | null;
+    onDelete: (
+        event: React.MouseEvent<HTMLButtonElement>,
+        id: number,
+        company: string,
+    ) => void;
+}) {
+    const closingInfo = getClosingInfo(
+        application.closing_date,
+    );
+
+    const followUpInfo = getFollowUpInfo(
+        application,
+    );
+
+    return (
+        <Link
+            href={`/applications/${application.id}`}
+            className="group block p-5 transition hover:bg-slate-50"
+        >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                {/* Left side */}
+                <div className="flex min-w-0 items-start gap-4">
+                    {/* Application number */}
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-700">
+                        {applicationNumber}
+                    </div>
+
+                    {/* Application information */}
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-semibold text-slate-900">
+                                {application.company}
+                            </h3>
+
+                            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
+                                {application.status}
+                            </span>
+                        </div>
+
+                        <p className="mt-1 text-sm text-slate-700">
+                            {application.job_title}
+                        </p>
+
+                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                            {application.location && (
+                                <span>
+                                    📍{" "}
+                                    {application.location}
+                                </span>
+                            )}
+
+                            {application.follow_up_count >
+                                0 && (
+                                    <span>
+                                        🔄{" "}
+                                        {
+                                            application.follow_up_count
+                                        }{" "}
+                                        {application.follow_up_count ===
+                                            1
+                                            ? "follow-up"
+                                            : "follow-ups"}
+                                    </span>
+                                )}
+                        </div>
+
+                        {/* Follow-up summary */}
+                        {application.follow_up_count >
+                            0 ? (
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <span
+                                    className={`rounded-full px-2.5 py-1 text-xs font-medium ${followUpInfo.className}`}
+                                >
+                                    {
+                                        followUpInfo.label
+                                    }
+                                </span>
+
+                                <span className="text-xs text-slate-500">
+                                    {
+                                        application.completed_follow_up_count
+                                    }{" "}
+                                    completed
+                                </span>
+
+                                {application.planned_follow_up_count >
+                                    0 && (
+                                        <span className="text-xs text-slate-500">
+                                            {
+                                                application.planned_follow_up_count
+                                            }{" "}
+                                            planned
+                                        </span>
+                                    )}
+                            </div>
+                        ) : (
+                            <p className="mt-3 text-xs text-slate-400">
+                                No follow-ups
+                            </p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Right side */}
+                <div className="flex shrink-0 items-center gap-4 sm:ml-4">
+                    <div className="text-left sm:text-right">
+                        {closingInfo.label && (
+                            <p
+                                className={`text-sm font-medium ${closingInfo.className}`}
+                            >
+                                {closingInfo.label}
+                            </p>
+                        )}
+
+                        {closingInfo.date && (
+                            <p className="mt-1 text-xs text-slate-500">
+                                {closingInfo.date}
+                            </p>
+                        )}
+
+                        {!(
+                            closingInfo.label ||
+                            closingInfo.date
+                        ) && (
+                                <p className="text-xs text-slate-400">
+                                    No closing date
+                                </p>
+                            )}
+                    </div>
+
+                    <button
+                        type="button"
+                        disabled={
+                            deletingId ===
+                            application.id
+                        }
+                        onClick={(event) =>
+                            onDelete(
+                                event,
+                                application.id,
+                                application.company,
+                            )
+                        }
+                        className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        {deletingId ===
+                            application.id
+                            ? "Deleting..."
+                            : "Delete"}
+                    </button>
+                </div>
+            </div>
+        </Link>
+    );
+}
+
+function compareApplicationDate(
+    a: Application,
+    b: Application,
+    direction: "asc" | "desc",
+) {
+    const difference =
+        new Date(a.date_applied).getTime() -
+        new Date(b.date_applied).getTime();
+
+    if (difference !== 0) {
+        return direction === "asc"
+            ? difference
+            : -difference;
+    }
+
+    return direction === "asc"
+        ? a.id - b.id
+        : b.id - a.id;
+}
+
+function compareClosingDate(
+    a: Application,
+    b: Application,
+) {
+    if (!a.closing_date && !b.closing_date) {
+        return compareApplicationDate(
+            a,
+            b,
+            "desc",
+        );
+    }
+
+    if (!a.closing_date) {
+        return 1;
+    }
+
+    if (!b.closing_date) {
+        return -1;
+    }
+
+    const difference =
+        new Date(a.closing_date).getTime() -
+        new Date(b.closing_date).getTime();
+
+    if (difference !== 0) {
+        return difference;
+    }
+
+    return compareApplicationDate(
+        a,
+        b,
+        "desc",
+    );
+}
+
+function compareFollowUpPriority(
+    a: Application,
+    b: Application,
+) {
+    const aDate = new Date(
+        `${a.next_follow_up_date}T00:00:00`,
+    );
+
+    const bDate = new Date(
+        `${b.next_follow_up_date}T00:00:00`,
+    );
+
+    /*
+     * Earlier follow-up dates always have higher
+     * priority. This naturally puts:
+     *
+     * overdue dates first,
+     * then today,
+     * then upcoming dates.
+     */
+    const difference =
+        aDate.getTime() -
+        bDate.getTime();
+
+    if (difference !== 0) {
+        return difference;
+    }
+
+    /*
+     * If two follow-ups are on the same date,
+     * use application date as the final tie-breaker.
+     */
+    return compareApplicationDate(
+        a,
+        b,
+        "desc",
     );
 }
 
@@ -507,12 +774,12 @@ function getFollowUpInfo(
         return {
             label:
                 application.completed_follow_up_count >
-                0
+                    0
                     ? "Follow-up completed"
                     : "No follow-ups",
             className:
                 application.completed_follow_up_count >
-                0
+                    0
                     ? "bg-emerald-50 text-emerald-700"
                     : "bg-slate-100 text-slate-500",
         };
@@ -543,7 +810,8 @@ function getFollowUpInfo(
         todayStart.getTime();
 
     const differenceDays = Math.ceil(
-        differenceMs / (1000 * 60 * 60 * 24),
+        differenceMs /
+        (1000 * 60 * 60 * 24),
     );
 
     if (differenceDays < 0) {
@@ -694,7 +962,7 @@ function getClosingInfo(
 
     const differenceDays = Math.ceil(
         differenceMs /
-            (1000 * 60 * 60 * 24),
+        (1000 * 60 * 60 * 24),
     );
 
     if (differenceDays < 0) {
