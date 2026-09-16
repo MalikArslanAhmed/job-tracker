@@ -108,3 +108,34 @@ export function deleteFollowUp(id: number) {
     )
     .run(id);
 }
+
+export type DashboardFollowUp = FollowUp & {
+  company: string;
+  job_title: string;
+  application_status: string;
+};
+
+export function getDashboardFollowUps(): DashboardFollowUp[] {
+  return db
+    .prepare(
+      `
+      SELECT
+        follow_ups.*,
+        applications.company,
+        applications.job_title,
+        applications.status AS application_status
+      FROM follow_ups
+      INNER JOIN applications
+        ON applications.id = follow_ups.application_id
+      WHERE applications.status NOT IN (
+        'Rejected',
+        'Withdrawn',
+        'Offer'
+      )
+      ORDER BY
+        follow_ups.follow_up_date ASC,
+        follow_ups.id ASC
+      `,
+    )
+    .all() as DashboardFollowUp[];
+}

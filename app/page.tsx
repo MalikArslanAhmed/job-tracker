@@ -1,8 +1,12 @@
 import Link from "next/link";
+import {
+  getDashboardFollowUps,
+} from "@/lib/followUps";
 import { getApplications } from "@/lib/applications";
 
 export default function Home() {
   const applications = getApplications();
+  const dashboardFollowUps = getDashboardFollowUps();
 
   const totalApplications = applications.length;
 
@@ -16,16 +20,30 @@ export default function Home() {
     (application) => application.status === "Offer",
   ).length;
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date();
+  const todayStart = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+  );
 
-  const followUps = applications.filter(
-    (application) =>
-      application.next_follow_up_date &&
-      application.next_follow_up_date <= today &&
-      application.status !== "Rejected" &&
-      application.status !== "Withdrawn" &&
-      application.status !== "Offer",
-  ).length;
+  const todayString = formatDateKey(todayStart);
+  const sevenDaysFromToday = formatDateKey(
+    addDays(todayStart, 7),
+  );
+
+  const dueFollowUps = dashboardFollowUps.filter(
+    (followUp) =>
+      followUp.status === "Planned" &&
+      followUp.follow_up_date <= todayString,
+  );
+
+  const upcomingFollowUps = dashboardFollowUps.filter(
+    (followUp) =>
+      followUp.status === "Planned" &&
+      followUp.follow_up_date > todayString &&
+      followUp.follow_up_date <= sevenDaysFromToday,
+  );
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
@@ -66,9 +84,10 @@ export default function Home() {
 
         <StatCard
           label="Follow-ups"
-          value={followUps}
+          value={dueFollowUps.length}
         />
       </div>
+
       <div className="mt-8 rounded-xl border border-slate-200 bg-white">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
@@ -129,76 +148,189 @@ export default function Home() {
           </div>
         )}
       </div>
-      <div className="mt-8 rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-6 py-4">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Follow-ups Due
-          </h2>
 
-          <p className="mt-1 text-sm text-slate-500">
-            Applications that need a follow-up today or are overdue.
-          </p>
-        </div>
+      <DashboardFollowUpSection
+        title="Follow-ups Due"
+        description="Overdue or due today."
+        followUps={dueFollowUps}
+        today={todayStart}
+        emptyMessage="No follow-ups due."
+      />
 
-        {applications.filter(
-          (application) =>
-            application.next_follow_up_date &&
-            application.next_follow_up_date <= today &&
-            application.status !== "Rejected" &&
-            application.status !== "Withdrawn" &&
-            application.status !== "Offer",
-        ).length === 0 ? (
-          <div className="p-6 text-center">
-            <p className="text-sm text-slate-500">
-              No follow-ups due.
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {applications
-              .filter(
-                (application) =>
-                  application.next_follow_up_date &&
-                  application.next_follow_up_date <= today &&
-                  application.status !== "Rejected" &&
-                  application.status !== "Withdrawn" &&
-                  application.status !== "Offer",
-              )
-              .map((application) => (
-                <Link
-                  key={application.id}
-                  href={`/applications/${application.id}`}
-                  className="flex items-center justify-between px-6 py-4 transition hover:bg-slate-50"
-                >
-                  <div>
-                    <p className="font-medium text-slate-900">
-                      {application.job_title}
-                    </p>
-
-                    <p className="mt-1 text-sm text-slate-500">
-                      {application.company}
-                    </p>
-                  </div>
-
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-slate-700">
-                      Follow-up:{" "}
-                      {new Date(
-                        application.next_follow_up_date!,
-                      ).toLocaleDateString("en-GB")}
-                    </p>
-
-                    <span className="mt-1 inline-block rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                      {application.status}
-                    </span>
-                  </div>
-                </Link>
-              ))}
-          </div>
-        )}
-      </div>
+      <DashboardFollowUpSection
+        title="Upcoming Follow-ups"
+        description="Planned follow-ups for the next 7 days."
+        followUps={upcomingFollowUps}
+        today={todayStart}
+        emptyMessage="No upcoming follow-ups."
+      />
     </div>
   );
+}
+
+function DashboardFollowUpSection({
+  title,
+  description,
+  followUps,
+  today,
+  emptyMessage,
+}: {
+  title: string;
+  description: string;
+  followUps: {
+    id: number;
+    application_id: number;
+    follow_up_date: string;
+    status: "Planned" | "Completed";
+    notes: string | null;
+    company: string;
+    job_title: string;
+    application_status: string;
+  }[];
+  today: Date;
+  emptyMessage: string;
+}) {
+  return (
+    <div className="mt-8 rounded-xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-6 py-4">
+        <h2 className="text-lg font-semibold text-slate-900">
+          {title}
+        </h2>
+
+        <p className="mt-1 text-sm text-slate-500">
+          {description}
+        </p>
+      </div>
+
+      {followUps.length === 0 ? (
+        <div className="p-6 text-center">
+          <p className="text-sm text-slate-500">
+            {emptyMessage}
+          </p>
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {followUps.map((followUp) => (
+            <DashboardFollowUpRow
+              key={followUp.id}
+              followUp={followUp}
+              today={today}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DashboardFollowUpRow({
+  followUp,
+  today,
+}: {
+  followUp: {
+    id: number;
+    application_id: number;
+    follow_up_date: string;
+    status: "Planned" | "Completed";
+    notes: string | null;
+    company: string;
+    job_title: string;
+    application_status: string;
+  };
+  today: Date;
+}) {
+  const followUpDate = new Date(
+    `${followUp.follow_up_date}T00:00:00`,
+  );
+
+  const differenceMs =
+    followUpDate.getTime() - today.getTime();
+
+  const differenceDays = Math.round(
+    differenceMs / (1000 * 60 * 60 * 24),
+  );
+
+  let timingLabel = "";
+  let timingClass = "";
+
+  if (differenceDays < 0) {
+    const daysOverdue = Math.abs(differenceDays);
+
+    timingLabel =
+      daysOverdue === 1
+        ? "Overdue by 1 day"
+        : `Overdue by ${daysOverdue} days`;
+
+    timingClass = "bg-red-50 text-red-700";
+  } else if (differenceDays === 0) {
+    timingLabel = "Due today";
+    timingClass = "bg-amber-50 text-amber-700";
+  } else if (differenceDays === 1) {
+    timingLabel = "Tomorrow";
+    timingClass = "bg-amber-50 text-amber-700";
+  } else {
+    timingLabel = `In ${differenceDays} days`;
+    timingClass = "bg-emerald-50 text-emerald-700";
+  }
+
+  return (
+    <Link
+      href={`/applications/${followUp.application_id}`}
+      className="flex items-center justify-between gap-6 px-6 py-4 transition hover:bg-slate-50"
+    >
+      <div className="min-w-0">
+        <p className="font-medium text-slate-900">
+          {followUp.job_title}
+        </p>
+
+        <p className="mt-1 text-sm text-slate-500">
+          {followUp.company}
+        </p>
+
+        {followUp.notes && (
+          <p className="mt-2 truncate text-xs text-slate-400">
+            {followUp.notes}
+          </p>
+        )}
+      </div>
+
+      <div className="shrink-0 text-right">
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-medium ${timingClass}`}
+        >
+          {timingLabel}
+        </span>
+
+        <p className="mt-2 text-xs text-slate-500">
+          {new Date(
+            `${followUp.follow_up_date}T00:00:00`,
+          ).toLocaleDateString("en-GB")}
+        </p>
+
+        <p className="mt-1 text-xs text-slate-400">
+          {followUp.application_status}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function addDays(date: Date, days: number) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function formatDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(
+    date.getMonth() + 1,
+  ).padStart(2, "0");
+  const day = String(
+    date.getDate(),
+  ).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function StatCard({
