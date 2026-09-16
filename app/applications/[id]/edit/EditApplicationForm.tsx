@@ -14,7 +14,6 @@ type Application = {
   date_applied: string;
   closing_date: string | null;
   status: string;
-  follow_up_date: string | null;
   interview_date: string | null;
   interview_notes: string | null;
   notes: string | null;
@@ -47,7 +46,8 @@ export default function EditApplicationForm({
 
       let resumeFileName = application.resume_file;
       let coverLetterFileName = application.cover_letter_file;
-      let jobDescriptionFileName = application.job_description_file;
+      let jobDescriptionFileName =
+        application.job_description_file;
 
       // Upload new Resume if selected
       const resumeFile = formData.get("resume_file");
@@ -71,7 +71,8 @@ export default function EditApplicationForm({
       }
 
       // Upload new Cover Letter if selected
-      const coverLetterFile = formData.get("cover_letter_file");
+      const coverLetterFile =
+        formData.get("cover_letter_file");
 
       if (
         coverLetterFile instanceof File &&
@@ -112,7 +113,9 @@ export default function EditApplicationForm({
         });
 
         if (!uploadResponse.ok) {
-          throw new Error("Job description upload failed.");
+          throw new Error(
+            "Job description upload failed.",
+          );
         }
 
         const uploadResult = await uploadResponse.json();
@@ -131,7 +134,6 @@ export default function EditApplicationForm({
         date_applied: formData.get("date_applied"),
         closing_date: formData.get("closing_date"),
         status: formData.get("status"),
-        follow_up_date: formData.get("follow_up_date"),
         interview_date: formData.get("interview_date"),
         interview_notes: formData.get("interview_notes"),
         notes: formData.get("notes"),
@@ -168,13 +170,20 @@ export default function EditApplicationForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-6"
+    >
       <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="text-lg font-semibold">Job Details</h2>
+        <h2 className="text-lg font-semibold">
+          Job Details
+        </h2>
 
         <div className="mt-5 grid gap-5 sm:grid-cols-2">
           <div>
-            <label className="text-sm font-medium text-slate-700">Company *</label>
+            <label className="text-sm font-medium text-slate-700">
+              Company *
+            </label>
             <input
               name="company"
               defaultValue={application.company}
@@ -184,7 +193,9 @@ export default function EditApplicationForm({
           </div>
 
           <div>
-            <label className="text-sm font-medium text-slate-700">Job Title *</label>
+            <label className="text-sm font-medium text-slate-700">
+              Job Title *
+            </label>
             <input
               name="job_title"
               defaultValue={application.job_title}
@@ -194,16 +205,22 @@ export default function EditApplicationForm({
           </div>
 
           <div>
-            <label className="text-sm font-medium text-slate-700">Job Reference</label>
+            <label className="text-sm font-medium text-slate-700">
+              Job Reference
+            </label>
             <input
               name="job_reference"
-              defaultValue={application.job_reference ?? ""}
+              defaultValue={
+                application.job_reference ?? ""
+              }
               className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </div>
 
           <div>
-            <label className="text-sm font-medium text-slate-700">Location</label>
+            <label className="text-sm font-medium text-slate-700">
+              Location
+            </label>
             <input
               name="location"
               defaultValue={application.location ?? ""}
@@ -212,7 +229,9 @@ export default function EditApplicationForm({
           </div>
 
           <div>
-            <label className="text-sm font-medium text-slate-700">Salary</label>
+            <label className="text-sm font-medium text-slate-700">
+              Salary
+            </label>
             <input
               name="salary"
               defaultValue={application.salary ?? ""}
@@ -221,7 +240,9 @@ export default function EditApplicationForm({
           </div>
 
           <div>
-            <label className="text-sm font-medium text-slate-700">Job URL</label>
+            <label className="text-sm font-medium text-slate-700">
+              Job URL
+            </label>
             <input
               name="job_url"
               type="url"
@@ -233,11 +254,15 @@ export default function EditApplicationForm({
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="text-lg font-semibold">Application Details</h2>
+        <h2 className="text-lg font-semibold">
+          Application Details
+        </h2>
 
         <div className="mt-5 grid gap-5 sm:grid-cols-2">
           <div>
-            <label className="text-sm font-medium text-slate-700">Date Applied *</label>
+            <label className="text-sm font-medium text-slate-700">
+              Date Applied *
+            </label>
             <input
               name="date_applied"
               type="date"
@@ -248,41 +273,42 @@ export default function EditApplicationForm({
           </div>
 
           <div>
-            <label className="text-sm font-medium text-slate-700">Closing Date</label>
+            <label className="text-sm font-medium text-slate-700">
+              Closing Date
+            </label>
             <input
               name="closing_date"
               type="date"
-              defaultValue={application.closing_date ?? ""}
+              defaultValue={
+                application.closing_date ?? ""
+              }
               className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </div>
 
           <div>
-            <label className="text-sm font-medium text-slate-700">Status</label>
+            <label className="text-sm font-medium text-slate-700">
+              Status
+            </label>
             <select
               name="status"
               defaultValue={application.status}
               className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
               <option value="Applied">Applied</option>
-              <option value="Shortlisted">Shortlisted</option>
+              <option value="Shortlisted">
+                Shortlisted
+              </option>
               <option value="Interview">Interview</option>
-              <option value="Final Stage">Final Stage</option>
+              <option value="Final Stage">
+                Final Stage
+              </option>
               <option value="Offer">Offer</option>
               <option value="Rejected">Rejected</option>
               <option value="Withdrawn">Withdrawn</option>
             </select>
           </div>
 
-          <div>
-            <label className="text-sm font-medium text-slate-700">Follow-up Date</label>
-            <input
-              name="follow_up_date"
-              type="date"
-              defaultValue={application.follow_up_date ?? ""}
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
-          </div>
           <div>
             <label className="text-sm font-medium text-slate-700">
               Interview Date
@@ -291,10 +317,13 @@ export default function EditApplicationForm({
             <input
               name="interview_date"
               type="datetime-local"
-              defaultValue={application.interview_date ?? ""}
+              defaultValue={
+                application.interview_date ?? ""
+              }
               className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </div>
+
           <div>
             <label className="text-sm font-medium text-slate-700">
               Contact Person
@@ -302,7 +331,9 @@ export default function EditApplicationForm({
             <input
               name="contact_person"
               type="text"
-              defaultValue={application.contact_person ?? ""}
+              defaultValue={
+                application.contact_person ?? ""
+              }
               className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               placeholder="e.g. Sarah Smith"
             />
@@ -315,13 +346,16 @@ export default function EditApplicationForm({
             <input
               name="contact_email"
               type="email"
-              defaultValue={application.contact_email ?? ""}
+              defaultValue={
+                application.contact_email ?? ""
+              }
               className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               placeholder="e.g. sarah@company.com"
             />
           </div>
         </div>
       </section>
+
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="text-lg font-semibold text-slate-900">
           Interview
@@ -335,7 +369,9 @@ export default function EditApplicationForm({
 
             <textarea
               name="interview_notes"
-              defaultValue={application.interview_notes ?? ""}
+              defaultValue={
+                application.interview_notes ?? ""
+              }
               rows={5}
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               placeholder="Add interview notes, questions, feedback, etc."
@@ -343,13 +379,15 @@ export default function EditApplicationForm({
           </div>
         </div>
       </section>
+
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="text-lg font-semibold text-slate-900">
           Application Documents
         </h2>
 
         <p className="mt-1 text-sm text-slate-500">
-          Upload a new file only if you want to replace the existing document.
+          Upload a new file only if you want to replace the
+          existing document.
         </p>
 
         <div className="mt-5 space-y-5">
@@ -411,8 +449,11 @@ export default function EditApplicationForm({
           </div>
         </div>
       </section>
+
       <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="text-lg font-semibold">Notes</h2>
+        <h2 className="text-lg font-semibold">
+          Notes
+        </h2>
 
         <textarea
           name="notes"
@@ -432,7 +473,9 @@ export default function EditApplicationForm({
         <button
           type="button"
           onClick={() =>
-            router.push(`/applications/${application.id}`)
+            router.push(
+              `/applications/${application.id}`,
+            )
           }
           className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
         >

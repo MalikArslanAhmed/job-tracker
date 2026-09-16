@@ -16,7 +16,6 @@ export default function NewApplicationPage() {
         date_applied: new Date().toISOString().split("T")[0],
         closing_date: "",
         status: "Applied",
-        follow_up_date: "",
         contact_person: "",
         contact_email: "",
         notes: "",
@@ -50,6 +49,7 @@ export default function NewApplicationPage() {
             let resumeFileName = "";
             let coverLetterFileName = "";
             let jobDescriptionFileName = "";
+
             // Upload Resume
             if (resumeInput.files && resumeInput.files.length > 0) {
                 const file = resumeInput.files[0];
@@ -94,10 +94,12 @@ export default function NewApplicationPage() {
 
                 coverLetterFileName = uploadResult.fileName;
             }
+
             // Upload Job Description
-            const jobDescriptionInput = formElement.elements.namedItem(
-                "job_description_file",
-            ) as HTMLInputElement;
+            const jobDescriptionInput =
+                formElement.elements.namedItem(
+                    "job_description_file",
+                ) as HTMLInputElement;
 
             if (
                 jobDescriptionInput.files &&
@@ -114,13 +116,16 @@ export default function NewApplicationPage() {
                 });
 
                 if (!uploadResponse.ok) {
-                    throw new Error("Job description upload failed.");
+                    throw new Error(
+                        "Job description upload failed.",
+                    );
                 }
 
                 const uploadResult = await uploadResponse.json();
 
                 jobDescriptionFileName = uploadResult.fileName;
             }
+
             // Save application
             const response = await fetch("/api/applications", {
                 method: "POST",
@@ -130,8 +135,10 @@ export default function NewApplicationPage() {
                 body: JSON.stringify({
                     ...form,
                     resume_file: resumeFileName || null,
-                    cover_letter_file: coverLetterFileName || null,
-                    job_description_file: jobDescriptionFileName || null,
+                    cover_letter_file:
+                        coverLetterFileName || null,
+                    job_description_file:
+                        jobDescriptionFileName || null,
                     contact_person: form.contact_person,
                     contact_email: form.contact_email,
                 }),
@@ -145,7 +152,9 @@ export default function NewApplicationPage() {
             }
         } catch (error) {
             console.error(error);
-            alert("Something went wrong while saving the application.");
+            alert(
+                "Something went wrong while saving the application.",
+            );
             setSaving(false);
         }
     }
@@ -194,7 +203,10 @@ export default function NewApplicationPage() {
                             label="Job Reference"
                             value={form.job_reference}
                             onChange={(value) =>
-                                updateField("job_reference", value)
+                                updateField(
+                                    "job_reference",
+                                    value,
+                                )
                             }
                         />
 
@@ -235,7 +247,10 @@ export default function NewApplicationPage() {
                             label="Date Applied"
                             value={form.date_applied}
                             onChange={(value) =>
-                                updateField("date_applied", value)
+                                updateField(
+                                    "date_applied",
+                                    value,
+                                )
                             }
                             type="date"
                             required
@@ -245,7 +260,10 @@ export default function NewApplicationPage() {
                             label="Closing Date"
                             value={form.closing_date}
                             onChange={(value) =>
-                                updateField("closing_date", value)
+                                updateField(
+                                    "closing_date",
+                                    value,
+                                )
                             }
                             type="date"
                         />
@@ -258,7 +276,10 @@ export default function NewApplicationPage() {
                             <select
                                 value={form.status}
                                 onChange={(event) =>
-                                    updateField("status", event.target.value)
+                                    updateField(
+                                        "status",
+                                        event.target.value,
+                                    )
                                 }
                                 className="mt-2 w-full rounded-lg border px-3 py-2.5"
                             >
@@ -272,14 +293,6 @@ export default function NewApplicationPage() {
                             </select>
                         </div>
 
-                        <Field
-                            label="Follow-up Date"
-                            value={form.follow_up_date}
-                            onChange={(value) =>
-                                updateField("follow_up_date", value)
-                            }
-                            type="date"
-                        />
                         <div>
                             <label className="block text-sm font-medium text-gray-700">
                                 Contact Person
@@ -289,7 +302,10 @@ export default function NewApplicationPage() {
                                 type="text"
                                 value={form.contact_person}
                                 onChange={(event) =>
-                                    updateField("contact_person", event.target.value)
+                                    updateField(
+                                        "contact_person",
+                                        event.target.value,
+                                    )
                                 }
                                 placeholder="e.g. Sarah Smith"
                                 className="mt-2 w-full rounded-lg border px-3 py-2.5"
@@ -305,7 +321,10 @@ export default function NewApplicationPage() {
                                 type="email"
                                 value={form.contact_email}
                                 onChange={(event) =>
-                                    updateField("contact_email", event.target.value)
+                                    updateField(
+                                        "contact_email",
+                                        event.target.value,
+                                    )
                                 }
                                 placeholder="e.g. sarah@company.com"
                                 className="mt-2 w-full rounded-lg border px-3 py-2.5"
@@ -313,13 +332,15 @@ export default function NewApplicationPage() {
                         </div>
                     </div>
                 </section>
+
                 <section className="rounded-xl border border-slate-200 bg-white p-6">
                     <h2 className="text-lg font-semibold text-slate-900">
                         Application Documents
                     </h2>
 
                     <p className="mt-1 text-sm text-slate-500">
-                        Keep track of the exact documents you used for this application.
+                        Keep track of the exact documents you used
+                        for this application.
                     </p>
 
                     <div className="mt-5 space-y-5">
@@ -353,6 +374,7 @@ export default function NewApplicationPage() {
                             <label className="text-sm font-medium text-slate-700">
                                 Job Description
                             </label>
+
                             <input
                                 name="job_description_file"
                                 type="file"
@@ -362,6 +384,7 @@ export default function NewApplicationPage() {
                         </div>
                     </div>
                 </section>
+
                 <section className="rounded-xl border border-slate-200 bg-white p-6">
                     <h2 className="text-lg font-semibold">
                         Notes
@@ -370,7 +393,10 @@ export default function NewApplicationPage() {
                     <textarea
                         value={form.notes}
                         onChange={(event) =>
-                            updateField("notes", event.target.value)
+                            updateField(
+                                "notes",
+                                event.target.value,
+                            )
                         }
                         rows={5}
                         placeholder="Anything important about this application..."
@@ -381,7 +407,9 @@ export default function NewApplicationPage() {
                 <div className="flex justify-end gap-3">
                     <button
                         type="button"
-                        onClick={() => router.push("/applications")}
+                        onClick={() =>
+                            router.push("/applications")
+                        }
                         className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                     >
                         Cancel
@@ -389,9 +417,12 @@ export default function NewApplicationPage() {
 
                     <button
                         type="submit"
-                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+                        disabled={saving}
+                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        Add Application
+                        {saving
+                            ? "Saving..."
+                            : "Add Application"}
                     </button>
                 </div>
             </form>
@@ -421,7 +452,9 @@ function Field({
             <input
                 type={type}
                 value={value}
-                onChange={(event) => onChange(event.target.value)}
+                onChange={(event) =>
+                    onChange(event.target.value)
+                }
                 required={required}
                 className="mt-2 w-full rounded-lg border px-3 py-2.5"
             />

@@ -11,6 +11,11 @@ type Application = {
     date_applied: string;
     closing_date: string | null;
     status: string;
+
+    next_follow_up_date: string | null;
+    follow_up_count: number;
+    completed_follow_up_count: number;
+    planned_follow_up_count: number;
 };
 
 export default function ApplicationList({
@@ -22,7 +27,9 @@ export default function ApplicationList({
     const [status, setStatus] = useState("All");
     const [dateFilter, setDateFilter] = useState("All");
     const [specificDate, setSpecificDate] = useState("");
-    const [deletingId, setDeletingId] = useState<number | null>(null);
+    const [deletingId, setDeletingId] = useState<number | null>(
+        null,
+    );
 
     const filteredApplications = useMemo(() => {
         const query = search.trim().toLowerCase();
@@ -31,12 +38,19 @@ export default function ApplicationList({
             .filter((application) => {
                 const matchesSearch =
                     !query ||
-                    application.company.toLowerCase().includes(query) ||
-                    application.job_title.toLowerCase().includes(query) ||
-                    application.location?.toLowerCase().includes(query);
+                    application.company
+                        .toLowerCase()
+                        .includes(query) ||
+                    application.job_title
+                        .toLowerCase()
+                        .includes(query) ||
+                    application.location
+                        ?.toLowerCase()
+                        .includes(query);
 
                 const matchesStatus =
-                    status === "All" || application.status === status;
+                    status === "All" ||
+                    application.status === status;
 
                 const matchesDate = matchesDateFilter(
                     application.date_applied,
@@ -59,7 +73,6 @@ export default function ApplicationList({
                     return dateDifference;
                 }
 
-                // Higher ID = application added later.
                 return b.id - a.id;
             });
     }, [
@@ -78,7 +91,9 @@ export default function ApplicationList({
                 groups[application.date_applied] = [];
             }
 
-            groups[application.date_applied].push(application);
+            groups[application.date_applied].push(
+                application,
+            );
         });
 
         return Object.entries(groups).sort(
@@ -107,24 +122,31 @@ export default function ApplicationList({
         setDeletingId(id);
 
         try {
-            const response = await fetch("/api/applications", {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
+            const response = await fetch(
+                "/api/applications",
+                {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ id }),
                 },
-                body: JSON.stringify({ id }),
-            });
+            );
 
             if (!response.ok) {
-                throw new Error("Failed to delete application.");
+                throw new Error(
+                    "Failed to delete application.",
+                );
             }
 
             window.location.reload();
         } catch (error) {
             console.error(error);
+
             alert(
                 "Something went wrong while deleting the application.",
             );
+
             setDeletingId(null);
         }
     }
@@ -152,37 +174,68 @@ export default function ApplicationList({
                     }
                     className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 >
-                    <option value="All">All Statuses</option>
-                    <option value="Applied">Applied</option>
+                    <option value="All">
+                        All Statuses
+                    </option>
+
+                    <option value="Applied">
+                        Applied
+                    </option>
+
                     <option value="Shortlisted">
                         Shortlisted
                     </option>
-                    <option value="Interview">Interview</option>
+
+                    <option value="Interview">
+                        Interview
+                    </option>
+
                     <option value="Final Stage">
                         Final Stage
                     </option>
-                    <option value="Offer">Offer</option>
-                    <option value="Rejected">Rejected</option>
-                    <option value="Withdrawn">Withdrawn</option>
+
+                    <option value="Offer">
+                        Offer
+                    </option>
+
+                    <option value="Rejected">
+                        Rejected
+                    </option>
+
+                    <option value="Withdrawn">
+                        Withdrawn
+                    </option>
                 </select>
 
                 {/* Date filter */}
                 <select
                     value={dateFilter}
                     onChange={(event) => {
-                        setDateFilter(event.target.value);
+                        setDateFilter(
+                            event.target.value,
+                        );
 
-                        if (event.target.value !== "Specific") {
+                        if (
+                            event.target.value !==
+                            "Specific"
+                        ) {
                             setSpecificDate("");
                         }
                     }}
                     className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 >
-                    <option value="All">All Dates</option>
-                    <option value="Today">Today</option>
+                    <option value="All">
+                        All Dates
+                    </option>
+
+                    <option value="Today">
+                        Today
+                    </option>
+
                     <option value="Yesterday">
                         Yesterday
                     </option>
+
                     <option value="Specific">
                         Specific Date
                     </option>
@@ -200,7 +253,9 @@ export default function ApplicationList({
                         type="date"
                         value={specificDate}
                         onChange={(event) =>
-                            setSpecificDate(event.target.value)
+                            setSpecificDate(
+                                event.target.value,
+                            )
                         }
                         className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                     />
@@ -246,7 +301,9 @@ export default function ApplicationList({
                                         </h2>
 
                                         <p className="mt-0.5 text-xs text-slate-500">
-                                            {dayApplications.length}{" "}
+                                            {
+                                                dayApplications.length
+                                            }{" "}
                                             {dayApplications.length ===
                                             1
                                                 ? "application"
@@ -268,16 +325,11 @@ export default function ApplicationList({
                                                         application.closing_date,
                                                     );
 
-                                                /*
-                                                 * Latest application
-                                                 * gets the highest number.
-                                                 *
-                                                 * Example:
-                                                 * 3 applications:
-                                                 * #3
-                                                 * #2
-                                                 * #1
-                                                 */
+                                                const followUpInfo =
+                                                    getFollowUpInfo(
+                                                        application,
+                                                    );
+
                                                 const applicationNumber =
                                                     dayApplications.length -
                                                     index;
@@ -331,7 +383,56 @@ export default function ApplicationList({
                                                                                 }
                                                                             </span>
                                                                         )}
+
+                                                                        {application.follow_up_count >
+                                                                            0 && (
+                                                                            <span>
+                                                                                🔄{" "}
+                                                                                {
+                                                                                    application.follow_up_count
+                                                                                }{" "}
+                                                                                {application.follow_up_count ===
+                                                                                1
+                                                                                    ? "follow-up"
+                                                                                    : "follow-ups"}
+                                                                            </span>
+                                                                        )}
                                                                     </div>
+
+                                                                    {/* Follow-up summary */}
+                                                                    {application.follow_up_count >
+                                                                    0 ? (
+                                                                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                                            <span
+                                                                                className={`rounded-full px-2.5 py-1 text-xs font-medium ${followUpInfo.className}`}
+                                                                            >
+                                                                                {
+                                                                                    followUpInfo.label
+                                                                                }
+                                                                            </span>
+
+                                                                            <span className="text-xs text-slate-500">
+                                                                                {
+                                                                                    application.completed_follow_up_count
+                                                                                }{" "}
+                                                                                completed
+                                                                            </span>
+
+                                                                            {application.planned_follow_up_count >
+                                                                                0 && (
+                                                                                <span className="text-xs text-slate-500">
+                                                                                    {
+                                                                                        application.planned_follow_up_count
+                                                                                    }{" "}
+                                                                                    planned
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <p className="mt-3 text-xs text-slate-400">
+                                                                            No follow-ups
+                                                                        </p>
+                                                                    )}
                                                                 </div>
                                                             </div>
 
@@ -396,6 +497,93 @@ export default function ApplicationList({
     );
 }
 
+function getFollowUpInfo(
+    application: Application,
+) {
+    if (
+        application.planned_follow_up_count ===
+        0
+    ) {
+        return {
+            label:
+                application.completed_follow_up_count >
+                0
+                    ? "Follow-up completed"
+                    : "No follow-ups",
+            className:
+                application.completed_follow_up_count >
+                0
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-slate-100 text-slate-500",
+        };
+    }
+
+    if (!application.next_follow_up_date) {
+        return {
+            label: "Follow-up planned",
+            className:
+                "bg-slate-100 text-slate-600",
+        };
+    }
+
+    const today = new Date();
+
+    const todayStart = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate(),
+    );
+
+    const followUpDate = new Date(
+        `${application.next_follow_up_date}T00:00:00`,
+    );
+
+    const differenceMs =
+        followUpDate.getTime() -
+        todayStart.getTime();
+
+    const differenceDays = Math.ceil(
+        differenceMs / (1000 * 60 * 60 * 24),
+    );
+
+    if (differenceDays < 0) {
+        const daysOverdue = Math.abs(
+            differenceDays,
+        );
+
+        return {
+            label:
+                daysOverdue === 1
+                    ? "Overdue by 1 day"
+                    : `Overdue by ${daysOverdue} days`,
+            className:
+                "bg-red-50 text-red-700",
+        };
+    }
+
+    if (differenceDays === 0) {
+        return {
+            label: "Follow up today",
+            className:
+                "bg-amber-50 text-amber-700",
+        };
+    }
+
+    if (differenceDays === 1) {
+        return {
+            label: "Follow up tomorrow",
+            className:
+                "bg-amber-50 text-amber-700",
+        };
+    }
+
+    return {
+        label: `Follow up in ${differenceDays} days`,
+        className:
+            "bg-emerald-50 text-emerald-700",
+    };
+}
+
 function matchesDateFilter(
     applicationDate: string,
     dateFilter: string,
@@ -414,7 +602,8 @@ function matchesDateFilter(
 
     const today = new Date();
 
-    const todayString = formatDateForComparison(today);
+    const todayString =
+        formatDateForComparison(today);
 
     if (dateFilter === "Today") {
         return applicationDate === todayString;
@@ -422,37 +611,57 @@ function matchesDateFilter(
 
     if (dateFilter === "Yesterday") {
         const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
+
+        yesterday.setDate(
+            yesterday.getDate() - 1,
+        );
 
         return (
             applicationDate ===
-            formatDateForComparison(yesterday)
+            formatDateForComparison(
+                yesterday,
+            )
         );
     }
 
     return true;
 }
 
-function formatDateForComparison(date: Date) {
+function formatDateForComparison(
+    date: Date,
+) {
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(
+        date.getMonth() + 1,
+    ).padStart(2, "0");
+    const day = String(
+        date.getDate(),
+    ).padStart(2, "0");
 
     return `${year}-${month}-${day}`;
 }
 
-function formatApplicationDate(date: string) {
-    const applicationDate = new Date(`${date}T00:00:00`);
+function formatApplicationDate(
+    date: string,
+) {
+    const applicationDate = new Date(
+        `${date}T00:00:00`,
+    );
 
-    return applicationDate.toLocaleDateString("en-GB", {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-    });
+    return applicationDate.toLocaleDateString(
+        "en-GB",
+        {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+        },
+    );
 }
 
-function getClosingInfo(closingDate: string | null) {
+function getClosingInfo(
+    closingDate: string | null,
+) {
     if (!closingDate) {
         return {
             label: "",
@@ -462,7 +671,10 @@ function getClosingInfo(closingDate: string | null) {
     }
 
     const today = new Date();
-    const closing = new Date(`${closingDate}T23:59:59`);
+
+    const closing = new Date(
+        `${closingDate}T23:59:59`,
+    );
 
     const todayStart = new Date(
         today.getFullYear(),
@@ -477,14 +689,18 @@ function getClosingInfo(closingDate: string | null) {
     );
 
     const differenceMs =
-        closingStart.getTime() - todayStart.getTime();
+        closingStart.getTime() -
+        todayStart.getTime();
 
     const differenceDays = Math.ceil(
-        differenceMs / (1000 * 60 * 60 * 24),
+        differenceMs /
+            (1000 * 60 * 60 * 24),
     );
 
     if (differenceDays < 0) {
-        const daysAgo = Math.abs(differenceDays);
+        const daysAgo = Math.abs(
+            differenceDays,
+        );
 
         return {
             label: "Application closed",

@@ -11,7 +11,10 @@ export type Application = {
   date_applied: string;
   closing_date: string | null;
   status: string;
-  follow_up_date: string | null;
+  next_follow_up_date: string | null;
+  follow_up_count: number;
+  completed_follow_up_count: number;
+  planned_follow_up_count: number;
   interview_date: string | null;
   interview_notes: string | null;
   contact_person: string | null;
@@ -28,7 +31,38 @@ export function getApplications(): Application[] {
   return db
     .prepare(
       `
-      SELECT *
+      SELECT
+        applications.*,
+
+        (
+          SELECT follow_up_date
+          FROM follow_ups
+          WHERE follow_ups.application_id = applications.id
+            AND follow_ups.status = 'Planned'
+          ORDER BY follow_up_date ASC, id ASC
+          LIMIT 1
+        ) AS next_follow_up_date,
+
+        (
+          SELECT COUNT(*)
+          FROM follow_ups
+          WHERE follow_ups.application_id = applications.id
+        ) AS follow_up_count,
+
+        (
+          SELECT COUNT(*)
+          FROM follow_ups
+          WHERE follow_ups.application_id = applications.id
+            AND follow_ups.status = 'Completed'
+        ) AS completed_follow_up_count,
+
+        (
+          SELECT COUNT(*)
+          FROM follow_ups
+          WHERE follow_ups.application_id = applications.id
+            AND follow_ups.status = 'Planned'
+        ) AS planned_follow_up_count
+
       FROM applications
       ORDER BY date_applied DESC
       `,
@@ -36,7 +70,9 @@ export function getApplications(): Application[] {
     .all() as Application[];
 }
 
-export function getApplicationById(id: number): Application | undefined {
+export function getApplicationById(
+  id: number,
+): Application | undefined {
   return db
     .prepare(
       `
@@ -60,7 +96,6 @@ export function updateApplication(
     date_applied: string;
     closing_date?: string;
     status?: string;
-    follow_up_date?: string;
     interview_date: string | null;
     interview_notes: string | null;
     contact_person?: string | null;
@@ -83,15 +118,14 @@ export function updateApplication(
       date_applied = @date_applied,
       closing_date = @closing_date,
       status = @status,
-      follow_up_date = @follow_up_date,
-interview_date = @interview_date,
-interview_notes = @interview_notes,
-contact_person = @contact_person,
-contact_email = @contact_email,
-notes = @notes,
+      interview_date = @interview_date,
+      interview_notes = @interview_notes,
+      contact_person = @contact_person,
+      contact_email = @contact_email,
+      notes = @notes,
       resume_file = @resume_file,
-cover_letter_file = @cover_letter_file,
-job_description_file = @job_description_file,
+      cover_letter_file = @cover_letter_file,
+      job_description_file = @job_description_file,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = @id
   `);
@@ -107,7 +141,6 @@ job_description_file = @job_description_file,
     date_applied: data.date_applied,
     closing_date: data.closing_date || null,
     status: data.status || "Applied",
-    follow_up_date: data.follow_up_date || null,
     interview_date: data.interview_date || null,
     interview_notes: data.interview_notes || null,
     contact_person: data.contact_person || null,
@@ -115,7 +148,8 @@ job_description_file = @job_description_file,
     notes: data.notes || null,
     resume_file: data.resume_file || null,
     cover_letter_file: data.cover_letter_file || null,
-    job_description_file: data.job_description_file || null,
+    job_description_file:
+      data.job_description_file || null,
   });
 }
 
@@ -129,7 +163,6 @@ export function createApplication(data: {
   date_applied: string;
   closing_date?: string;
   status?: string;
-  follow_up_date?: string;
   contact_person?: string;
   contact_email?: string;
   resume_file: string | null;
@@ -148,7 +181,6 @@ export function createApplication(data: {
       date_applied,
       closing_date,
       status,
-      follow_up_date,
       contact_person,
       contact_email,
       notes,
@@ -166,7 +198,6 @@ export function createApplication(data: {
       @date_applied,
       @closing_date,
       @status,
-      @follow_up_date,
       @contact_person,
       @contact_email,
       @notes,
@@ -186,12 +217,12 @@ export function createApplication(data: {
     date_applied: data.date_applied,
     closing_date: data.closing_date || null,
     status: data.status || "Applied",
-    follow_up_date: data.follow_up_date || null,
     contact_person: data.contact_person || null,
     contact_email: data.contact_email || null,
     notes: data.notes || null,
     resume_file: data.resume_file || null,
     cover_letter_file: data.cover_letter_file || null,
-    job_description_file: data.job_description_file || null,
+    job_description_file:
+      data.job_description_file || null,
   });
 }

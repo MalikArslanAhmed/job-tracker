@@ -20,8 +20,8 @@ export default function Home() {
 
   const followUps = applications.filter(
     (application) =>
-      application.follow_up_date &&
-      application.follow_up_date <= today &&
+      application.next_follow_up_date &&
+      application.next_follow_up_date <= today &&
       application.status !== "Rejected" &&
       application.status !== "Withdrawn" &&
       application.status !== "Offer",
@@ -142,8 +142,8 @@ export default function Home() {
 
         {applications.filter(
           (application) =>
-            application.follow_up_date &&
-            application.follow_up_date <= today &&
+            application.next_follow_up_date &&
+            application.next_follow_up_date <= today &&
             application.status !== "Rejected" &&
             application.status !== "Withdrawn" &&
             application.status !== "Offer",
@@ -158,8 +158,8 @@ export default function Home() {
             {applications
               .filter(
                 (application) =>
-                  application.follow_up_date &&
-                  application.follow_up_date <= today &&
+                  application.next_follow_up_date &&
+                  application.next_follow_up_date <= today &&
                   application.status !== "Rejected" &&
                   application.status !== "Withdrawn" &&
                   application.status !== "Offer",
@@ -184,7 +184,7 @@ export default function Home() {
                     <p className="text-sm font-medium text-slate-700">
                       Follow-up:{" "}
                       {new Date(
-                        application.follow_up_date!,
+                        application.next_follow_up_date!,
                       ).toLocaleDateString("en-GB")}
                     </p>
 

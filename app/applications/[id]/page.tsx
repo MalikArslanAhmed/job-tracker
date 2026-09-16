@@ -123,11 +123,6 @@ export default async function ApplicationDetailPage({
               label="Closing Date"
               value={formatDate(application.closing_date)}
             />
-
-            <Detail
-              label="Follow-up Date"
-              value={formatDate(application.follow_up_date)}
-            />
           </div>
         </section>
         <section className="rounded-xl border border-slate-200 bg-white p-6">
