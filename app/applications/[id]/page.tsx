@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getApplicationById } from "@/lib/applications";
 import DeleteApplicationButton from "./DeleteApplicationButton";
+import FollowUps from "./FollowUps";
 
 type PageProps = {
   params: Promise<{
@@ -175,6 +176,7 @@ export default async function ApplicationDetailPage({
             </p>
           </section>
         )}
+        <FollowUps applicationId={application.id} />
       </div>
     </div>
   );
