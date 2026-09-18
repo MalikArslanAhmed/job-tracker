@@ -183,6 +183,12 @@ function DocumentDetail({
   label: string;
   value: string | null;
 }) {
+  function getDisplayFileName(filePath: string) {
+    const fileName = filePath.split("/").pop() || filePath;
+
+    return fileName.replace(/^\d+-/, "");
+  }
+
   return (
     <div>
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -196,7 +202,7 @@ function DocumentDetail({
           rel="noopener noreferrer"
           className="mt-1 inline-block text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline"
         >
-          📄 {value}
+          📄 {getDisplayFileName(value)}
         </a>
       ) : (
         <p className="mt-1 text-sm text-slate-500">
