@@ -2,26 +2,33 @@ import { NextResponse } from "next/server";
 import {
   createFollowUp,
   deleteFollowUp,
+  getDashboardFollowUps,
   getFollowUpsByApplicationId,
+  markFollowUpNoResponse,
+  markFollowUpResponseReceived,
+  markFollowUpSent,
   updateFollowUp,
 } from "@/lib/followUps";
-
+import { sendGmail } from "@/lib/gmail";
+import { createFollowUpEmail } from "@/lib/followUpEmail";
+import { getApplicationById } from "@/lib/applications";
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const applicationId = Number(
-      searchParams.get("applicationId"),
+    const applicationId = searchParams.get(
+      "applicationId",
     );
 
-    if (!applicationId) {
-      return NextResponse.json(
-        { error: "Application ID is required." },
-        { status: 400 },
-      );
+    if (applicationId) {
+      const followUps =
+        getFollowUpsByApplicationId(
+          Number(applicationId),
+        );
+
+      return NextResponse.json(followUps);
     }
 
-    const followUps =
-      getFollowUpsByApplicationId(applicationId);
+    const followUps = getDashboardFollowUps();
 
     return NextResponse.json(followUps);
   } catch (error) {
@@ -49,14 +56,26 @@ export async function POST(request: Request) {
     }
 
     const status =
-      body.status === "Completed"
-        ? "Completed"
+      body.status === "Sent"
+        ? "Sent"
         : "Planned";
+
+    const responseStatus =
+      body.response_status === "Received"
+        ? "Received"
+        : body.response_status === "No Response"
+          ? "No Response"
+          : "Waiting";
 
     const result = createFollowUp({
       application_id: Number(body.application_id),
+      follow_up_number: Number(body.follow_up_number) || 1,
       follow_up_date: body.follow_up_date,
       status,
+      response_status: responseStatus,
+      email_to: body.email_to,
+      email_subject: body.email_subject,
+      email_message: body.email_message,
       notes: body.notes,
     });
 
@@ -77,27 +96,323 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
+    if (body.action === "send_due") {
+      const followUps = getDashboardFollowUps();
 
-    if (
-      !body.id ||
-      !body.follow_up_date ||
-      !body.status
-    ) {
+      const today = new Date();
+      const todayString =
+        `${today.getFullYear()}-${String(
+          today.getMonth() + 1,
+        ).padStart(2, "0")}-${String(
+          today.getDate(),
+        ).padStart(2, "0")}`;
+
+      const dueFollowUps = followUps.filter(
+        (followUp) =>
+          followUp.status === "Planned" &&
+          followUp.follow_up_date <= todayString,
+      );
+
+      let sent = 0;
+      let skipped = 0;
+
+      const skippedDetails: string[] = [];
+
+      for (const followUp of dueFollowUps) {
+        const application = getApplicationById(
+          followUp.application_id,
+        );
+        if (!application) {
+          skipped++;
+          skippedDetails.push(
+            `Follow-up #${followUp.follow_up_number} — Application not found`,
+          );
+          continue;
+        }
+
+        if (!application.contact_email) {
+          skipped++;
+          skippedDetails.push(
+            `${application.company} — ${application.job_title} — No contact email`,
+          );
+          continue;
+        }
+
+        try {
+          const email = createFollowUpEmail({
+            company: application.company,
+            jobTitle: application.job_title,
+            contactPerson: application.contact_person,
+            followUpNumber: followUp.follow_up_number,
+          });
+
+          await sendGmail({
+            to: application.contact_email,
+            subject: email.subject,
+            message: email.message,
+          });
+
+          markFollowUpSent(followUp.id, {
+            email_to: application.contact_email,
+            email_subject: email.subject,
+            email_message: email.message,
+          });
+
+          const nextFollowUpNumber =
+            followUp.follow_up_number + 1;
+
+          if (
+            application.follow_up_enabled &&
+            nextFollowUpNumber <= application.max_follow_ups
+          ) {
+            const nextFollowUpDate = (() => {
+              const date = new Date();
+              let daysAdded = 0;
+
+              while (
+                daysAdded <
+                application.follow_up_wait_days
+              ) {
+                date.setDate(date.getDate() + 1);
+
+                const day = date.getDay();
+
+                if (day !== 0 && day !== 6) {
+                  daysAdded++;
+                }
+              }
+
+              return `${date.getFullYear()}-${String(
+                date.getMonth() + 1,
+              ).padStart(2, "0")}-${String(
+                date.getDate(),
+              ).padStart(2, "0")}`;
+            })();
+
+            createFollowUp({
+              application_id: application.id,
+              follow_up_number: nextFollowUpNumber,
+              follow_up_date: nextFollowUpDate,
+              status: "Planned",
+              response_status: "Waiting",
+              notes:
+                `Automatically planned ${application.follow_up_wait_days} business days after follow-up #${followUp.follow_up_number} was sent.`,
+            });
+          }
+
+          sent++;
+        } catch (error) {
+          console.error(
+            `Failed to send follow-up ${followUp.id}:`,
+            error,
+          );
+
+          skipped++;
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        sent,
+        skipped,
+        skippedDetails,
+      });
+    }
+    if (!body.id) {
+      return NextResponse.json(
+        { error: "Follow-up ID is required." },
+        { status: 400 },
+      );
+    }
+    /*
+     * Send follow-up email.
+     */
+    if (body.action === "send") {
+      const followUpId = Number(body.id);
+
+      const followUps = getDashboardFollowUps();
+      const followUp = followUps.find(
+        (item) => item.id === followUpId,
+      );
+
+      if (!followUp) {
+        return NextResponse.json(
+          { error: "Follow-up not found." },
+          { status: 404 },
+        );
+      }
+
+      if (followUp.status !== "Planned") {
+        return NextResponse.json(
+          { error: "This follow-up has already been processed." },
+          { status: 400 },
+        );
+      }
+
+      const application = getApplicationById(
+        followUp.application_id,
+      );
+
+      if (!application) {
+        return NextResponse.json(
+          { error: "Application not found." },
+          { status: 404 },
+        );
+      }
+
+      if (!application.contact_email) {
+        return NextResponse.json(
+          {
+            error:
+              "No contact email is available for this application.",
+          },
+          { status: 400 },
+        );
+      }
+
+      const email = createFollowUpEmail({
+        company: application.company,
+        jobTitle: application.job_title,
+        contactPerson: application.contact_person,
+        followUpNumber: followUp.follow_up_number,
+      });
+
+      const gmailResponse = await sendGmail({
+        to: application.contact_email,
+        subject: email.subject,
+        message: email.message,
+      });
+
+      markFollowUpSent(followUpId, {
+        email_to: application.contact_email,
+        email_subject: email.subject,
+        email_message: email.message,
+      });
+
+      /*
+       * Schedule the next follow-up.
+       */
+      const nextFollowUpNumber =
+        followUp.follow_up_number + 1;
+
+      if (
+        application.follow_up_enabled &&
+        nextFollowUpNumber <= application.max_follow_ups
+      ) {
+        const nextFollowUpDate = (() => {
+          const date = new Date();
+          let daysAdded = 0;
+
+          while (daysAdded < application.follow_up_wait_days) {
+            date.setDate(date.getDate() + 1);
+
+            const day = date.getDay();
+
+            if (day !== 0 && day !== 6) {
+              daysAdded++;
+            }
+          }
+
+          return `${date.getFullYear()}-${String(
+            date.getMonth() + 1,
+          ).padStart(2, "0")}-${String(
+            date.getDate(),
+          ).padStart(2, "0")}`;
+        })();
+
+        createFollowUp({
+          application_id: application.id,
+          follow_up_number: nextFollowUpNumber,
+          follow_up_date: nextFollowUpDate,
+          status: "Planned",
+          response_status: "Waiting",
+          notes:
+            `Automatically planned ${application.follow_up_wait_days} days after follow-up #${followUp.follow_up_number} was sent.`,
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Follow-up email sent successfully.",
+        messageId: gmailResponse.id,
+      });
+    }
+    /*
+     * Mark follow-up as sent.
+     */
+    if (body.action === "sent") {
+      markFollowUpSent(Number(body.id), {
+        email_to: body.email_to,
+        email_subject: body.email_subject,
+        email_message: body.email_message,
+      });
+
+      return NextResponse.json({
+        success: true,
+      });
+    }
+
+    /*
+     * Mark response as received.
+     */
+    if (body.action === "response_received") {
+      markFollowUpResponseReceived(Number(body.id));
+
+      return NextResponse.json({
+        success: true,
+      });
+    }
+
+    /*
+     * Mark follow-up as having no response.
+     */
+    if (body.action === "no_response") {
+      markFollowUpNoResponse(Number(body.id));
+
+      return NextResponse.json({
+        success: true,
+      });
+    }
+
+    /*
+     * Normal follow-up edit.
+     */
+    if (!body.follow_up_date || !body.status) {
       return NextResponse.json(
         {
           error:
-            "Follow-up ID, date, and status are required.",
+            "Follow-up date and status are required.",
         },
         { status: 400 },
       );
     }
 
-    if (
-      body.status !== "Planned" &&
-      body.status !== "Completed"
-    ) {
+    const validStatuses = [
+      "Planned",
+      "Sent",
+      "Cancelled",
+    ];
+
+    const validResponseStatuses = [
+      "Waiting",
+      "Received",
+      "No Response",
+    ];
+
+    if (!validStatuses.includes(body.status)) {
       return NextResponse.json(
         { error: "Invalid follow-up status." },
+        { status: 400 },
+      );
+    }
+
+    if (
+      !validResponseStatuses.includes(
+        body.response_status,
+      )
+    ) {
+      return NextResponse.json(
+        { error: "Invalid response status." },
         { status: 400 },
       );
     }
@@ -105,6 +420,7 @@ export async function PUT(request: Request) {
     updateFollowUp(Number(body.id), {
       follow_up_date: body.follow_up_date,
       status: body.status,
+      response_status: body.response_status,
       notes: body.notes,
     });
 

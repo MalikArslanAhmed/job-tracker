@@ -1,4 +1,5 @@
 import db from "./db";
+import { createFollowUp } from "./followUps";
 
 export type Application = {
   id: number;
@@ -11,10 +12,17 @@ export type Application = {
   date_applied: string;
   closing_date: string | null;
   status: string;
+
+  follow_up_enabled: number;
+  max_follow_ups: number;
+  follow_up_wait_days: number;
+
   next_follow_up_date: string | null;
   follow_up_count: number;
-  completed_follow_up_count: number;
   planned_follow_up_count: number;
+  sent_follow_up_count: number;
+  cancelled_follow_up_count: number;
+
   interview_date: string | null;
   interview_notes: string | null;
   contact_person: string | null;
@@ -39,6 +47,11 @@ export function getApplications(): Application[] {
           FROM follow_ups
           WHERE follow_ups.application_id = applications.id
             AND follow_ups.status = 'Planned'
+            AND applications.status NOT IN (
+              'Rejected',
+              'Withdrawn',
+              'Offer'
+            )
           ORDER BY follow_up_date ASC, id ASC
           LIMIT 1
         ) AS next_follow_up_date,
@@ -53,15 +66,27 @@ export function getApplications(): Application[] {
           SELECT COUNT(*)
           FROM follow_ups
           WHERE follow_ups.application_id = applications.id
-            AND follow_ups.status = 'Completed'
-        ) AS completed_follow_up_count,
+            AND follow_ups.status = 'Sent'
+        ) AS sent_follow_up_count,
 
         (
           SELECT COUNT(*)
           FROM follow_ups
           WHERE follow_ups.application_id = applications.id
             AND follow_ups.status = 'Planned'
-        ) AS planned_follow_up_count
+            AND applications.status NOT IN (
+              'Rejected',
+              'Withdrawn',
+              'Offer'
+            )
+        ) AS planned_follow_up_count,
+
+        (
+          SELECT COUNT(*)
+          FROM follow_ups
+          WHERE follow_ups.application_id = applications.id
+            AND follow_ups.status = 'Cancelled'
+        ) AS cancelled_follow_up_count
 
       FROM applications
       ORDER BY date_applied DESC
@@ -207,7 +232,7 @@ export function createApplication(data: {
     )
   `);
 
-  return statement.run({
+  const result = statement.run({
     company: data.company,
     job_title: data.job_title,
     job_reference: data.job_reference || null,
@@ -225,4 +250,59 @@ export function createApplication(data: {
     job_description_file:
       data.job_description_file || null,
   });
+
+  const applicationId = Number(result.lastInsertRowid);
+
+  const baseDate = data.closing_date || data.date_applied;
+
+  const followUpDateResult = db
+    .prepare(
+      `
+      WITH RECURSIVE business_days(
+        candidate_date,
+        business_days_added
+      ) AS (
+        SELECT
+          date(?),
+          0
+
+        UNION ALL
+
+        SELECT
+          date(candidate_date, '+1 day'),
+          business_days_added +
+            CASE
+              WHEN strftime(
+                '%w',
+                date(candidate_date, '+1 day')
+              ) NOT IN ('0', '6')
+              THEN 1
+              ELSE 0
+            END
+        FROM business_days
+        WHERE business_days_added < 3
+      )
+      SELECT candidate_date
+      FROM business_days
+      WHERE business_days_added = 3
+      LIMIT 1
+      `,
+    )
+    .get(baseDate) as {
+      candidate_date: string;
+    };
+
+  createFollowUp({
+    application_id: applicationId,
+    follow_up_number: 1,
+    follow_up_date:
+      followUpDateResult.candidate_date,
+    status: "Planned",
+    response_status: "Waiting",
+    notes: data.closing_date
+      ? "Automatically planned 3 business days after closing date."
+      : "Automatically planned 3 business days after application date.",
+  });
+
+  return result;
 }

@@ -20,6 +20,11 @@ export default function Home() {
     (application) => application.status === "Offer",
   ).length;
 
+  const totalPlannedFollowUps =
+    dashboardFollowUps.filter(
+      (followUp) => followUp.status === "Planned",
+    ).length;
+
   const today = new Date();
   const todayStart = new Date(
     today.getFullYear(),
@@ -28,6 +33,7 @@ export default function Home() {
   );
 
   const todayString = formatDateKey(todayStart);
+
   const sevenDaysFromToday = formatDateKey(
     addDays(todayStart, 7),
   );
@@ -84,7 +90,7 @@ export default function Home() {
 
         <StatCard
           label="Follow-ups"
-          value={dueFollowUps.length}
+          value={totalPlannedFollowUps}
         />
       </div>
 
@@ -180,12 +186,22 @@ function DashboardFollowUpSection({
   followUps: {
     id: number;
     application_id: number;
+    follow_up_number: number;
     follow_up_date: string;
-    status: "Planned" | "Completed";
+    status: "Planned" | "Sent" | "Cancelled";
+    response_status: "Waiting" | "Received" | "No Response";
+    sent_at: string | null;
+    responded_at: string | null;
+    email_to: string | null;
+    email_subject: string | null;
+    email_message: string | null;
     notes: string | null;
+    created_at: string;
+    updated_at: string;
     company: string;
     job_title: string;
     application_status: string;
+    contact_email: string | null;
   }[];
   today: Date;
   emptyMessage: string;
@@ -230,9 +246,18 @@ function DashboardFollowUpRow({
   followUp: {
     id: number;
     application_id: number;
+    follow_up_number: number;
     follow_up_date: string;
-    status: "Planned" | "Completed";
+    status: "Planned" | "Sent" | "Cancelled";
+    response_status: "Waiting" | "Received" | "No Response";
+    sent_at: string | null;
+    responded_at: string | null;
+    email_to: string | null;
+    email_subject: string | null;
+    email_message: string | null;
     notes: string | null;
+    created_at: string;
+    updated_at: string;
     company: string;
     job_title: string;
     application_status: string;

@@ -14,8 +14,9 @@ type Application = {
 
     next_follow_up_date: string | null;
     follow_up_count: number;
-    completed_follow_up_count: number;
     planned_follow_up_count: number;
+    sent_follow_up_count: number;
+    cancelled_follow_up_count: number;
 };
 
 export default function ApplicationList({
@@ -72,10 +73,8 @@ export default function ApplicationList({
         if (sortBy === "follow-up") {
             result = result.filter(
                 (application) =>
-                    application.planned_follow_up_count >
-                    0 &&
-                    application.next_follow_up_date !==
-                    null,
+                    application.planned_follow_up_count > 0 &&
+                    application.next_follow_up_date !== null,
             );
         }
 
@@ -93,10 +92,7 @@ export default function ApplicationList({
             }
 
             if (sortBy === "follow-up") {
-                return compareFollowUpPriority(
-                    a,
-                    b,
-                );
+                return compareFollowUpPriority(a, b);
             }
 
             return compareApplicationDate(
@@ -119,77 +115,58 @@ export default function ApplicationList({
         sortBy === "oldest" ||
         sortBy === "follow-up";
 
-const groupedApplications = useMemo(() => {
-    if (!shouldGroupByApplicationDate) {
-        return [];
-    }
+    const groupedApplications = useMemo(() => {
+        if (!shouldGroupByApplicationDate) {
+            return [];
+        }
 
-    const groups: Record<string, Application[]> =
-        {};
+        const groups: Record<string, Application[]> = {};
 
-    filteredApplications.forEach(
-        (application) => {
-            if (
-                !groups[
-                    application.date_applied
-                ]
-            ) {
-                groups[
-                    application.date_applied
-                ] = [];
+        filteredApplications.forEach((application) => {
+            if (!groups[application.date_applied]) {
+                groups[application.date_applied] = [];
             }
 
-            groups[
-                application.date_applied
-            ].push(application);
-        },
-    );
+            groups[application.date_applied].push(application);
+        });
 
-    const entries = Object.entries(groups);
+        const entries = Object.entries(groups);
 
-    /*
-     * Newest / Oldest:
-     * Sort groups by application date.
-     *
-     * Follow-up Priority:
-     * Keep the group order based on the first
-     * application inside each group. Since the
-     * applications are already sorted by follow-up
-     * priority, this keeps the highest-priority
-     * follow-up group at the top.
-     */
-    if (sortBy === "follow-up") {
+        /*
+         * Follow-up Priority:
+         * Keep group order based on the first application
+         * inside each group.
+         */
+        if (sortBy === "follow-up") {
+            return entries.sort(
+                ([dateA], [dateB]) => {
+                    const firstA = groups[dateA][0];
+                    const firstB = groups[dateB][0];
+
+                    return compareFollowUpPriority(
+                        firstA,
+                        firstB,
+                    );
+                },
+            );
+        }
+
         return entries.sort(
             ([dateA], [dateB]) => {
-                const firstA =
-                    groups[dateA][0];
-                const firstB =
-                    groups[dateB][0];
+                const difference =
+                    new Date(dateA).getTime() -
+                    new Date(dateB).getTime();
 
-                return compareFollowUpPriority(
-                    firstA,
-                    firstB,
-                );
+                return sortBy === "oldest"
+                    ? difference
+                    : -difference;
             },
         );
-    }
-
-    return entries.sort(
-        ([dateA], [dateB]) => {
-            const difference =
-                new Date(dateA).getTime() -
-                new Date(dateB).getTime();
-
-            return sortBy === "oldest"
-                ? difference
-                : -difference;
-        },
-    );
-}, [
-    filteredApplications,
-    shouldGroupByApplicationDate,
-    sortBy,
-]);
+    }, [
+        filteredApplications,
+        shouldGroupByApplicationDate,
+        sortBy,
+    ]);
 
     async function handleDelete(
         event: React.MouseEvent<HTMLButtonElement>,
@@ -310,14 +287,9 @@ const groupedApplications = useMemo(() => {
                 <select
                     value={dateFilter}
                     onChange={(event) => {
-                        setDateFilter(
-                            event.target.value,
-                        );
+                        setDateFilter(event.target.value);
 
-                        if (
-                            event.target.value !==
-                            "Specific"
-                        ) {
+                        if (event.target.value !== "Specific") {
                             setSpecificDate("");
                         }
                     }}
@@ -393,8 +365,7 @@ const groupedApplications = useMemo(() => {
                     <span className="font-semibold text-slate-700">
                         {filteredApplications.length}
                     </span>{" "}
-                    {filteredApplications.length ===
-                        1
+                    {filteredApplications.length === 1
                         ? "application"
                         : "applications"}
                 </p>
@@ -412,7 +383,7 @@ const groupedApplications = useMemo(() => {
                     </p>
                 </div>
             ) : shouldGroupByApplicationDate ? (
-                /* Grouped views: Newest / Oldest */
+                /* Grouped views */
                 <div className="space-y-6">
                     {groupedApplications.map(
                         ([date, dayApplications]) => (
@@ -427,9 +398,7 @@ const groupedApplications = useMemo(() => {
                                         </h2>
 
                                         <p className="mt-0.5 text-xs text-slate-500">
-                                            {
-                                                dayApplications.length
-                                            }{" "}
+                                            {dayApplications.length}{" "}
                                             {dayApplications.length ===
                                                 1
                                                 ? "application"
@@ -473,7 +442,7 @@ const groupedApplications = useMemo(() => {
                     )}
                 </div>
             ) : (
-                /* Flat views: Closing / Follow-up Priority */
+                /* Flat views */
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                     <div className="divide-y divide-slate-100">
                         {filteredApplications.map(
@@ -565,39 +534,36 @@ function ApplicationRow({
                                 </span>
                             )}
 
-                            {application.follow_up_count >
-                                0 && (
-                                    <span>
-                                        🔄{" "}
-                                        {
-                                            application.follow_up_count
-                                        }{" "}
-                                        {application.follow_up_count ===
-                                            1
-                                            ? "follow-up"
-                                            : "follow-ups"}
-                                    </span>
-                                )}
+                            {application.follow_up_count > 0 && (
+                                <span>
+                                    🔄{" "}
+                                    {application.follow_up_count}{" "}
+                                    {application.follow_up_count ===
+                                        1
+                                        ? "follow-up"
+                                        : "follow-ups"}
+                                </span>
+                            )}
                         </div>
 
                         {/* Follow-up summary */}
-                        {application.follow_up_count >
-                            0 ? (
+                        {application.follow_up_count > 0 ? (
                             <div className="mt-3 flex flex-wrap items-center gap-2">
                                 <span
                                     className={`rounded-full px-2.5 py-1 text-xs font-medium ${followUpInfo.className}`}
                                 >
-                                    {
-                                        followUpInfo.label
-                                    }
+                                    {followUpInfo.label}
                                 </span>
 
-                                <span className="text-xs text-slate-500">
-                                    {
-                                        application.completed_follow_up_count
-                                    }{" "}
-                                    completed
-                                </span>
+                                {application.sent_follow_up_count >
+                                    0 && (
+                                        <span className="text-xs text-slate-500">
+                                            {
+                                                application.sent_follow_up_count
+                                            }{" "}
+                                            sent
+                                        </span>
+                                    )}
 
                                 {application.planned_follow_up_count >
                                     0 && (
@@ -606,6 +572,16 @@ function ApplicationRow({
                                                 application.planned_follow_up_count
                                             }{" "}
                                             planned
+                                        </span>
+                                    )}
+
+                                {application.cancelled_follow_up_count >
+                                    0 && (
+                                        <span className="text-xs text-slate-500">
+                                            {
+                                                application.cancelled_follow_up_count
+                                            }{" "}
+                                            cancelled
                                         </span>
                                     )}
                             </div>
@@ -737,14 +713,6 @@ function compareFollowUpPriority(
         `${b.next_follow_up_date}T00:00:00`,
     );
 
-    /*
-     * Earlier follow-up dates always have higher
-     * priority. This naturally puts:
-     *
-     * overdue dates first,
-     * then today,
-     * then upcoming dates.
-     */
     const difference =
         aDate.getTime() -
         bDate.getTime();
@@ -753,10 +721,6 @@ function compareFollowUpPriority(
         return difference;
     }
 
-    /*
-     * If two follow-ups are on the same date,
-     * use application date as the final tie-breaker.
-     */
     return compareApplicationDate(
         a,
         b,
@@ -767,21 +731,36 @@ function compareFollowUpPriority(
 function getFollowUpInfo(
     application: Application,
 ) {
+    const isTerminalStatus = [
+        "Rejected",
+        "Withdrawn",
+        "Offer",
+    ].includes(application.status);
+
     if (
-        application.planned_follow_up_count ===
-        0
+        isTerminalStatus ||
+        application.planned_follow_up_count === 0
     ) {
+        if (application.sent_follow_up_count > 0) {
+            return {
+                label: "No planned follow-ups",
+                className:
+                    "bg-slate-100 text-slate-600",
+            };
+        }
+
+        if (application.cancelled_follow_up_count > 0) {
+            return {
+                label: "Follow-up cancelled",
+                className:
+                    "bg-slate-100 text-slate-600",
+            };
+        }
+
         return {
-            label:
-                application.completed_follow_up_count >
-                    0
-                    ? "Follow-up completed"
-                    : "No follow-ups",
+            label: "No follow-ups",
             className:
-                application.completed_follow_up_count >
-                    0
-                    ? "bg-emerald-50 text-emerald-700"
-                    : "bg-slate-100 text-slate-500",
+                "bg-slate-100 text-slate-500",
         };
     }
 
@@ -809,15 +788,14 @@ function getFollowUpInfo(
         followUpDate.getTime() -
         todayStart.getTime();
 
-    const differenceDays = Math.ceil(
+    const differenceDays = Math.round(
         differenceMs /
         (1000 * 60 * 60 * 24),
     );
 
     if (differenceDays < 0) {
-        const daysOverdue = Math.abs(
-            differenceDays,
-        );
+        const daysOverdue =
+            Math.abs(differenceDays);
 
         return {
             label:
