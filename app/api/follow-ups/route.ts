@@ -84,10 +84,15 @@ export async function POST(request: Request) {
       id: result.lastInsertRowid,
     });
   } catch (error) {
-    console.error(error);
+    console.error("CREATE FOLLOW-UP ERROR:", error);
 
     return NextResponse.json(
-      { error: "Failed to create follow-up." },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to create follow-up.",
+      },
       { status: 500 },
     );
   }
@@ -96,6 +101,71 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
+    /*
+* Preview follow-up email without sending it.
+*/
+    if (body.action === "preview") {
+      const followUpId = Number(body.id);
+
+      const followUps = getDashboardFollowUps();
+      const followUp = followUps.find(
+        (item) => item.id === followUpId,
+      );
+
+      if (!followUp) {
+        return NextResponse.json(
+          { error: "Follow-up not found." },
+          { status: 404 },
+        );
+      }
+
+      if (followUp.status !== "Planned") {
+        return NextResponse.json(
+          {
+            error:
+              "Only planned follow-ups can be previewed.",
+          },
+          { status: 400 },
+        );
+      }
+
+      const application = getApplicationById(
+        followUp.application_id,
+      );
+
+      if (!application) {
+        return NextResponse.json(
+          { error: "Application not found." },
+          { status: 404 },
+        );
+      }
+
+      if (!application.contact_email) {
+        return NextResponse.json(
+          {
+            error:
+              "No contact email is available for this application.",
+          },
+          { status: 400 },
+        );
+      }
+
+      const email = createFollowUpEmail({
+        company: application.company,
+        jobTitle: application.job_title,
+        contactPerson: application.contact_person,
+        followUpNumber: followUp.follow_up_number,
+      });
+
+      return NextResponse.json({
+        success: true,
+        followUpId: followUp.id,
+        followUpNumber: followUp.follow_up_number,
+        to: application.contact_email,
+        subject: email.subject,
+        message: email.message,
+      });
+    }
     if (body.action === "send_due") {
       const followUps = getDashboardFollowUps();
 
@@ -225,8 +295,8 @@ export async function PUT(request: Request) {
       );
     }
     /*
-     * Send follow-up email.
-     */
+    * Send follow-up email.
+    */
     if (body.action === "send") {
       const followUpId = Number(body.id);
 
@@ -269,29 +339,46 @@ export async function PUT(request: Request) {
           { status: 400 },
         );
       }
-
-      const email = createFollowUpEmail({
+      const generatedEmail = createFollowUpEmail({
         company: application.company,
         jobTitle: application.job_title,
         contactPerson: application.contact_person,
         followUpNumber: followUp.follow_up_number,
       });
 
+      const emailTo =
+        typeof body.email_to === "string" &&
+          body.email_to.trim()
+          ? body.email_to.trim()
+          : application.contact_email;
+
+      const emailSubject =
+        typeof body.email_subject === "string" &&
+          body.email_subject.trim()
+          ? body.email_subject.trim()
+          : generatedEmail.subject;
+
+      const emailMessage =
+        typeof body.email_message === "string" &&
+          body.email_message.trim()
+          ? body.email_message
+          : generatedEmail.message;
+
       const gmailResponse = await sendGmail({
-        to: application.contact_email,
-        subject: email.subject,
-        message: email.message,
+        to: emailTo,
+        subject: emailSubject,
+        message: emailMessage,
       });
 
       markFollowUpSent(followUpId, {
-        email_to: application.contact_email,
-        email_subject: email.subject,
-        email_message: email.message,
+        email_to: emailTo,
+        email_subject: emailSubject,
+        email_message: emailMessage,
       });
 
       /*
-       * Schedule the next follow-up.
-       */
+      * Schedule the next follow-up.
+      */
       const nextFollowUpNumber =
         followUp.follow_up_number + 1;
 
@@ -338,8 +425,8 @@ export async function PUT(request: Request) {
       });
     }
     /*
-     * Mark follow-up as sent.
-     */
+    * Mark follow-up as sent.
+    */
     if (body.action === "sent") {
       markFollowUpSent(Number(body.id), {
         email_to: body.email_to,
@@ -353,8 +440,8 @@ export async function PUT(request: Request) {
     }
 
     /*
-     * Mark response as received.
-     */
+    * Mark response as received.
+    */
     if (body.action === "response_received") {
       markFollowUpResponseReceived(Number(body.id));
 
@@ -364,8 +451,8 @@ export async function PUT(request: Request) {
     }
 
     /*
-     * Mark follow-up as having no response.
-     */
+    * Mark follow-up as having no response.
+    */
     if (body.action === "no_response") {
       markFollowUpNoResponse(Number(body.id));
 
@@ -375,8 +462,8 @@ export async function PUT(request: Request) {
     }
 
     /*
-     * Normal follow-up edit.
-     */
+    * Normal follow-up edit.
+    */
     if (!body.follow_up_date || !body.status) {
       return NextResponse.json(
         {

@@ -195,6 +195,34 @@ export function createApplication(data: {
   job_description_file: string | null;
   notes?: string;
 }) {
+  let contactEmail = data.contact_email?.trim() || null;
+
+  // If no contact email was provided, look for an existing
+  // application from the same company that already has an email.
+  if (!contactEmail) {
+    const existingContact = db
+      .prepare(
+        `
+        SELECT contact_email
+        FROM applications
+        WHERE LOWER(TRIM(company)) = LOWER(TRIM(?))
+          AND contact_email IS NOT NULL
+          AND TRIM(contact_email) != ''
+        ORDER BY id DESC
+        LIMIT 1
+        `,
+      )
+      .get(data.company) as
+      | {
+        contact_email: string;
+      }
+      | undefined;
+
+    if (existingContact?.contact_email) {
+      contactEmail = existingContact.contact_email;
+    }
+  }
+
   const statement = db.prepare(`
     INSERT INTO applications (
       company,
@@ -243,7 +271,7 @@ export function createApplication(data: {
     closing_date: data.closing_date || null,
     status: data.status || "Applied",
     contact_person: data.contact_person || null,
-    contact_email: data.contact_email || null,
+    contact_email: contactEmail,
     notes: data.notes || null,
     resume_file: data.resume_file || null,
     cover_letter_file: data.cover_letter_file || null,

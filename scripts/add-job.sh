@@ -27,11 +27,17 @@ set -e
 #   /Users/arslan/Documents/CVs/Cover letter.pdf
 #
 # Follow-up:
-#   Closing date exists -> +3 days from closing date
-#   No closing date     -> +3 days from application date
+#   Closing date exists -> +3 BUSINESS DAYS from closing date
+#   No closing date     -> +3 BUSINESS DAYS from application date
+#
+# The initial follow-up created by this script is always:
+#   Follow-up #1
+#
+# Contact email:
+#   If --contact-email is not provided, the script checks
+#   previous applications for the same company and reuses
+#   the most recently stored contact email.
 # ============================================================
-
-set -e
 
 # ------------------------------------------------------------
 # Fixed paths
@@ -223,6 +229,14 @@ fi
 mkdir -p "$UPLOADS_DIR"
 
 # ------------------------------------------------------------
+# SQL escape helper
+# ------------------------------------------------------------
+
+sql_escape() {
+    printf "%s" "$1" | sed "s/'/''/g"
+}
+
+# ------------------------------------------------------------
 # Generate unique filenames
 # ------------------------------------------------------------
 
@@ -248,30 +262,75 @@ cp "$SOURCE_RESUME" "$UPLOADS_DIR/$RESUME_FILENAME"
 cp "$SOURCE_COVER" "$UPLOADS_DIR/$COVER_FILENAME"
 
 # ------------------------------------------------------------
-# Calculate follow-up date
+# Reuse existing contact email when one was not provided
 # ------------------------------------------------------------
 
-if [[ -n "$CLOSING_DATE" ]]; then
+if [[ -z "$CONTACT_EMAIL" ]]; then
 
-    FOLLOW_UP_DATE=$(date -j -v+3d -f "%Y-%m-%d" "$CLOSING_DATE" "+%Y-%m-%d")
+    SQL_COMPANY_LOOKUP=$(sql_escape "$COMPANY")
 
-    FOLLOW_UP_NOTE="Closing date $CLOSING_DATE. Follow up 3 days after closing date if no update is received."
-
-else
-
-    FOLLOW_UP_DATE=$(date -j -v+3d -f "%Y-%m-%d" "$DATE_APPLIED" "+%Y-%m-%d")
-
-    FOLLOW_UP_NOTE="No closing date specified. Follow up 3 days after application if no update is received."
+    CONTACT_EMAIL=$(sqlite3 "$DB_PATH" "
+        SELECT contact_email
+        FROM applications
+        WHERE LOWER(TRIM(company)) = LOWER(TRIM('$SQL_COMPANY_LOOKUP'))
+          AND contact_email IS NOT NULL
+          AND TRIM(contact_email) != ''
+        ORDER BY id DESC
+        LIMIT 1;
+    ")
 
 fi
 
 # ------------------------------------------------------------
-# Escape SQL values safely
+# Calculate follow-up date
+#
+# 3 BUSINESS DAYS after the base date.
+# Monday-Friday count.
+# Saturday/Sunday do not count.
 # ------------------------------------------------------------
 
-sql_escape() {
-    printf "%s" "$1" | sed "s/'/''/g"
-}
+if [[ -n "$CLOSING_DATE" ]]; then
+
+    BASE_DATE="$CLOSING_DATE"
+
+    FOLLOW_UP_NOTE="Closing date $CLOSING_DATE. Automatically planned 3 business days after closing date."
+
+else
+
+    BASE_DATE="$DATE_APPLIED"
+
+    FOLLOW_UP_NOTE="No closing date specified. Automatically planned 3 business days after application date."
+
+fi
+
+FOLLOW_UP_DATE="$BASE_DATE"
+BUSINESS_DAYS_ADDED=0
+
+while [[ $BUSINESS_DAYS_ADDED -lt 3 ]]; do
+
+    FOLLOW_UP_DATE=$(date \
+        -j \
+        -v+1d \
+        -f "%Y-%m-%d" \
+        "$FOLLOW_UP_DATE" \
+        "+%Y-%m-%d")
+
+    DAY_OF_WEEK=$(date \
+        -j \
+        -f "%Y-%m-%d" \
+        "$FOLLOW_UP_DATE" \
+        "+%u")
+
+    # Monday=1 ... Friday=5
+    if [[ "$DAY_OF_WEEK" -lt 6 ]]; then
+        BUSINESS_DAYS_ADDED=$((BUSINESS_DAYS_ADDED + 1))
+    fi
+
+done
+
+# ------------------------------------------------------------
+# Escape SQL values safely
+# ------------------------------------------------------------
 
 SQL_COMPANY=$(sql_escape "$COMPANY")
 SQL_JOB_TITLE=$(sql_escape "$JOB_TITLE")
@@ -289,7 +348,7 @@ SQL_JOB_DESCRIPTION_FILE=$(sql_escape "$JOB_DESCRIPTION_FILE")
 SQL_FOLLOW_UP_NOTE=$(sql_escape "$FOLLOW_UP_NOTE")
 
 # ------------------------------------------------------------
-# Insert application + follow-up in ONE transaction
+# Insert application + initial follow-up in ONE transaction
 # ------------------------------------------------------------
 
 if ! sqlite3 "$DB_PATH" <<SQL
@@ -332,12 +391,14 @@ VALUES (
 
 INSERT INTO follow_ups (
     application_id,
+    follow_up_number,
     follow_up_date,
     status,
     notes
 )
 VALUES (
     last_insert_rowid(),
+    1,
     '$FOLLOW_UP_DATE',
     'Planned',
     '$SQL_FOLLOW_UP_NOTE'
@@ -347,8 +408,10 @@ COMMIT;
 SQL
 then
     echo "❌ Database insertion failed."
+
     rm -f "$UPLOADS_DIR/$RESUME_FILENAME"
     rm -f "$UPLOADS_DIR/$COVER_FILENAME"
+
     exit 1
 fi
 
@@ -377,7 +440,11 @@ else
     echo "Closing:       Not specified"
 fi
 
-echo "Follow-up:     $FOLLOW_UP_DATE"
+if [[ -n "$CONTACT_EMAIL" ]]; then
+    echo "Contact Email: $CONTACT_EMAIL"
+fi
+
+echo "Follow-up:     #1 on $FOLLOW_UP_DATE"
 echo "Status:        $STATUS"
 echo ""
 echo "Resume:        $RESUME_PATH"
