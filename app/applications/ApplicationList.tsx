@@ -498,9 +498,11 @@ function ApplicationRow({
     );
 
     return (
-        <Link
-            href={`/applications/${application.id}`}
-            className="group block p-5 transition hover:bg-slate-50"
+        <div
+            className="group block cursor-pointer p-5 transition hover:bg-slate-50"
+            onClick={() => {
+                window.location.href = `/applications/${application.id}`;
+            }}
         >
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 {/* Left side */}
@@ -513,9 +515,18 @@ function ApplicationRow({
                     {/* Application information */}
                     <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="font-semibold text-slate-900">
+                            {/* Company name → Company details */}
+                            <Link
+                                href={`/companies/${encodeURIComponent(
+                                    application.company,
+                                )}`}
+                                onClick={(event) =>
+                                    event.stopPropagation()
+                                }
+                                className="font-semibold text-slate-900 hover:text-blue-600 hover:underline"
+                            >
                                 {application.company}
-                            </h3>
+                            </Link>
 
                             <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
                                 {application.status}
@@ -642,10 +653,9 @@ function ApplicationRow({
                     </button>
                 </div>
             </div>
-        </Link>
+        </div>
     );
 }
-
 function compareApplicationDate(
     a: Application,
     b: Application,

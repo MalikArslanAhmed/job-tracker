@@ -334,3 +334,139 @@ export function createApplication(data: {
 
   return result;
 }
+
+
+export type CompanySummary = {
+  company: string;
+  application_count: number;
+  latest_application_date: string;
+  latest_status: string;
+  active_application_count: number;
+  next_follow_up_date: string | null;
+};
+
+export function getCompanies(): CompanySummary[] {
+  return db
+    .prepare(
+      `
+      SELECT
+        a1.company,
+
+        COUNT(*) AS application_count,
+
+        MAX(a1.date_applied) AS latest_application_date,
+
+        (
+          SELECT a2.status
+          FROM applications a2
+          WHERE LOWER(TRIM(a2.company)) =
+                LOWER(TRIM(a1.company))
+          ORDER BY a2.date_applied DESC, a2.id DESC
+          LIMIT 1
+        ) AS latest_status,
+
+        SUM(
+          CASE
+            WHEN a1.status NOT IN (
+              'Rejected',
+              'Withdrawn',
+              'Offer'
+            )
+            THEN 1
+            ELSE 0
+          END
+        ) AS active_application_count,
+
+        (
+          SELECT MIN(f.follow_up_date)
+          FROM follow_ups f
+          JOIN applications a3
+            ON a3.id = f.application_id
+          WHERE LOWER(TRIM(a3.company)) =
+                LOWER(TRIM(a1.company))
+            AND f.status = 'Planned'
+            AND a3.status NOT IN (
+              'Rejected',
+              'Withdrawn',
+              'Offer'
+            )
+        ) AS next_follow_up_date
+
+      FROM applications a1
+
+      WHERE a1.company IS NOT NULL
+        AND TRIM(a1.company) != ''
+
+      GROUP BY LOWER(TRIM(a1.company))
+
+      ORDER BY latest_application_date DESC
+      `,
+    )
+    .all() as CompanySummary[];
+}
+
+export function getApplicationsByCompany(
+  company: string,
+): Application[] {
+  return db
+    .prepare(
+      `
+      SELECT
+        applications.*,
+
+        (
+          SELECT follow_up_date
+          FROM follow_ups
+          WHERE follow_ups.application_id = applications.id
+            AND follow_ups.status = 'Planned'
+            AND applications.status NOT IN (
+              'Rejected',
+              'Withdrawn',
+              'Offer'
+            )
+          ORDER BY follow_up_date ASC, id ASC
+          LIMIT 1
+        ) AS next_follow_up_date,
+
+        (
+          SELECT COUNT(*)
+          FROM follow_ups
+          WHERE follow_ups.application_id = applications.id
+        ) AS follow_up_count,
+
+        (
+          SELECT COUNT(*)
+          FROM follow_ups
+          WHERE follow_ups.application_id = applications.id
+            AND follow_ups.status = 'Sent'
+        ) AS sent_follow_up_count,
+
+        (
+          SELECT COUNT(*)
+          FROM follow_ups
+          WHERE follow_ups.application_id = applications.id
+            AND follow_ups.status = 'Planned'
+            AND applications.status NOT IN (
+              'Rejected',
+              'Withdrawn',
+              'Offer'
+            )
+        ) AS planned_follow_up_count,
+
+        (
+          SELECT COUNT(*)
+          FROM follow_ups
+          WHERE follow_ups.application_id = applications.id
+            AND follow_ups.status = 'Cancelled'
+        ) AS cancelled_follow_up_count
+
+      FROM applications
+
+      WHERE LOWER(TRIM(company)) =
+            LOWER(TRIM(?))
+
+      ORDER BY date_applied DESC, id DESC
+      `,
+    )
+    .all(company) as Application[];
+}
