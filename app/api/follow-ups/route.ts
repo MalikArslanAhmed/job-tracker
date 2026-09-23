@@ -169,7 +169,13 @@ export async function PUT(request: Request) {
     if (body.action === "send_due") {
       const followUps = getDashboardFollowUps();
 
+      const company =
+        typeof body.company === "string"
+          ? body.company.trim()
+          : "";
+
       const today = new Date();
+
       const todayString =
         `${today.getFullYear()}-${String(
           today.getMonth() + 1,
@@ -178,9 +184,27 @@ export async function PUT(request: Request) {
         ).padStart(2, "0")}`;
 
       const dueFollowUps = followUps.filter(
-        (followUp) =>
-          followUp.status === "Planned" &&
-          followUp.follow_up_date <= todayString,
+        (followUp) => {
+          if (
+            followUp.status !== "Planned" ||
+            followUp.follow_up_date > todayString
+          ) {
+            return false;
+          }
+
+          // If a company was supplied,
+          // only include follow-ups for that company.
+          if (company) {
+            return (
+              followUp.company?.trim().toLowerCase() ===
+              company.toLowerCase()
+            );
+          }
+
+          // No company supplied:
+          // keep the existing global behavior.
+          return true;
+        },
       );
 
       let sent = 0;
@@ -192,19 +216,24 @@ export async function PUT(request: Request) {
         const application = getApplicationById(
           followUp.application_id,
         );
+
         if (!application) {
           skipped++;
+
           skippedDetails.push(
             `Follow-up #${followUp.follow_up_number} — Application not found`,
           );
+
           continue;
         }
 
         if (!application.contact_email) {
           skipped++;
+
           skippedDetails.push(
             `${application.company} — ${application.job_title} — No contact email`,
           );
+
           continue;
         }
 
@@ -233,7 +262,8 @@ export async function PUT(request: Request) {
 
           if (
             application.follow_up_enabled &&
-            nextFollowUpNumber <= application.max_follow_ups
+            nextFollowUpNumber <=
+            application.max_follow_ups
           ) {
             const nextFollowUpDate = (() => {
               const date = new Date();
@@ -243,7 +273,9 @@ export async function PUT(request: Request) {
                 daysAdded <
                 application.follow_up_wait_days
               ) {
-                date.setDate(date.getDate() + 1);
+                date.setDate(
+                  date.getDate() + 1,
+                );
 
                 const day = date.getDay();
 
@@ -261,7 +293,8 @@ export async function PUT(request: Request) {
 
             createFollowUp({
               application_id: application.id,
-              follow_up_number: nextFollowUpNumber,
+              follow_up_number:
+                nextFollowUpNumber,
               follow_up_date: nextFollowUpDate,
               status: "Planned",
               response_status: "Waiting",

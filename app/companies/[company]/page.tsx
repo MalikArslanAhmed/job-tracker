@@ -2,7 +2,8 @@ import Link from "next/link";
 import {
     getApplicationsByCompany,
 } from "@/lib/applications";
-
+import CompanyApplicationRow from "./CompanyApplicationRow";
+import SendCompanyDueFollowUpsButton from "./SendCompanyDueFollowUpsButton";
 function formatDate(date: string | null) {
     if (!date) return "Not specified";
 
@@ -204,15 +205,21 @@ export default async function CompanyPage({
             </Link>
 
             {/* Header */}
-            <div className="mt-6">
-                <h1 className="text-2xl font-bold text-gray-900">
-                    {companyName}
-                </h1>
+            <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900">
+                        {companyName}
+                    </h1>
 
-                <p className="mt-1 text-sm text-gray-600">
-                    All applications submitted to this
-                    company.
-                </p>
+                    <p className="mt-1 text-sm text-gray-600">
+                        All applications submitted to this
+                        company.
+                    </p>
+                </div>
+
+                <SendCompanyDueFollowUpsButton
+                    company={companyName}
+                />
             </div>
 
             {/* Summary */}
@@ -296,127 +303,21 @@ export default async function CompanyPage({
 
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                     <div className="divide-y divide-slate-100">
-                        {applications.map(
-                            (application) => {
-                                const followUp =
-                                    getFollowUpClasses(
-                                        application,
-                                        application.status,
-                                    );
-
-                                return (
-                                    <div
-                                        key={application.id}
-                                        className="p-5 transition hover:bg-slate-50"
-                                    >
-                                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                                            {/* Main information */}
-                                            <div className="min-w-0">
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <h3 className="font-semibold text-slate-900">
-                                                        {
-                                                            application.job_title
-                                                        }
-                                                    </h3>
-
-                                                    <span
-                                                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClasses(
-                                                            application.status,
-                                                        )}`}
-                                                    >
-                                                        {
-                                                            application.status
-                                                        }
-                                                    </span>
-                                                </div>
-
-                                                <div className="mt-3 grid gap-2 text-sm text-slate-500 sm:grid-cols-2">
-                                                    <div>
-                                                        <span className="font-medium text-slate-600">
-                                                            Applied:
-                                                        </span>{" "}
-                                                        {formatDate(
-                                                            application.date_applied,
-                                                        )}
-                                                    </div>
-
-                                                    <div>
-                                                        <span className="font-medium text-slate-600">
-                                                            Closing:
-                                                        </span>{" "}
-                                                        {formatDate(
-                                                            application.closing_date,
-                                                        )}
-                                                    </div>
-
-                                                    {application.location && (
-                                                        <div>
-                                                            <span className="font-medium text-slate-600">
-                                                                Location:
-                                                            </span>{" "}
-                                                            {
-                                                                application.location
-                                                            }
-                                                        </div>
-                                                    )}
-
-                                                    {application.salary && (
-                                                        <div>
-                                                            <span className="font-medium text-slate-600">
-                                                                Salary:
-                                                            </span>{" "}
-                                                            {
-                                                                application.salary
-                                                            }
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* Follow-up */}
-                                                <div className="mt-3 flex flex-wrap items-center gap-2">
-                                                    <span
-                                                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${followUp.className}`}
-                                                    >
-                                                        {followUp.label}
-                                                    </span>
-
-                                                    {application.next_follow_up_date && (
-                                                        <span className="text-xs text-slate-500">
-                                                            {formatDate(
-                                                                application.next_follow_up_date,
-                                                            )}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Actions */}
-                                            <div className="flex shrink-0 flex-wrap items-center gap-2">
-                                                {application.job_url && (
-                                                    <a
-                                                        href={
-                                                            application.job_url
-                                                        }
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                                                    >
-                                                        Job Posting
-                                                    </a>
-                                                )}
-
-                                                <Link
-                                                    href={`/applications/${application.id}`}
-                                                    className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-                                                >
-                                                    View Application
-                                                </Link>
-                                            </div>
-                                        </div>
-                                    </div>
+                        {applications.map((application) => {
+                            const followUp =
+                                getFollowUpClasses(
+                                    application,
+                                    application.status,
                                 );
-                            },
-                        )}
+
+                            return (
+                                <CompanyApplicationRow
+                                    key={application.id}
+                                    application={application}
+                                    followUp={followUp}
+                                />
+                            );
+                        })}
                     </div>
                 </div>
             </div>

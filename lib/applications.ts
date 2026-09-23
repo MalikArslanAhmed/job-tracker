@@ -16,7 +16,7 @@ export type Application = {
   follow_up_enabled: number;
   max_follow_ups: number;
   follow_up_wait_days: number;
-
+  next_follow_up_id: number | null;
   next_follow_up_date: string | null;
   follow_up_count: number;
   planned_follow_up_count: number;
@@ -414,19 +414,33 @@ export function getApplicationsByCompany(
       SELECT
         applications.*,
 
-        (
-          SELECT follow_up_date
-          FROM follow_ups
-          WHERE follow_ups.application_id = applications.id
-            AND follow_ups.status = 'Planned'
-            AND applications.status NOT IN (
-              'Rejected',
-              'Withdrawn',
-              'Offer'
-            )
-          ORDER BY follow_up_date ASC, id ASC
-          LIMIT 1
-        ) AS next_follow_up_date,
+   (
+  SELECT id
+  FROM follow_ups
+  WHERE follow_ups.application_id = applications.id
+    AND follow_ups.status = 'Planned'
+    AND applications.status NOT IN (
+      'Rejected',
+      'Withdrawn',
+      'Offer'
+    )
+  ORDER BY follow_up_date ASC, id ASC
+  LIMIT 1
+) AS next_follow_up_id,
+
+(
+  SELECT follow_up_date
+  FROM follow_ups
+  WHERE follow_ups.application_id = applications.id
+    AND follow_ups.status = 'Planned'
+    AND applications.status NOT IN (
+      'Rejected',
+      'Withdrawn',
+      'Offer'
+    )
+  ORDER BY follow_up_date ASC, id ASC
+  LIMIT 1
+) AS next_follow_up_date,
 
         (
           SELECT COUNT(*)
